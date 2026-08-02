@@ -1,0 +1,26 @@
+---
+deployment:
+  tasks:
+    # 1. Define Paths (Adjust these if your cPanel username is not westgpac or if paths differ)
+    - export DEPLOYPATH=/home/westgpac/westhub
+    - export PUBLICPATH=/home/westgpac/public_html
+    - export ADMINPUBLICPATH=/home/westgpac/admin.westhub.com
+    
+    # 2. Sync Application Core Files (Excluding public folders and git)
+    - /bin/rsync -a --exclude='.git' --exclude='public' --exclude='westhub-admin/public' ./ $DEPLOYPATH/
+    
+    # 3. Sync Main Public Files to public_html
+    - /bin/rsync -a ./public/ $PUBLICPATH/
+    
+    # 4. Sync Admin Public Files to Subdomain
+    - /bin/rsync -a ./westhub-admin/public/ $ADMINPUBLICPATH/
+    
+    # 5. Install Dependencies (Main)
+    - cd $DEPLOYPATH && composer install --optimize-autoloader --no-dev
+    
+    # 6. Install Dependencies (Admin)
+    - cd $DEPLOYPATH/westhub-admin && composer install --optimize-autoloader --no-dev
+    
+    # 7. Optimize & Cache
+    - cd $DEPLOYPATH && php artisan config:cache && php artisan route:cache && php artisan view:cache
+    - cd $DEPLOYPATH/westhub-admin && php artisan config:cache && php artisan route:cache && php artisan view:cache

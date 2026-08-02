@@ -1,0 +1,57 @@
+# excludes from the docker image/build
+
+# 1. Ignore Laravel/runtime files we don't need in the image
+bootstrap/cache/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/logs/*
+.env
+!prod.env
+.rr.yml
+rr
+frankenphp
+
+# 2. Ignore dependency directories, including nested project copies
+vendor
+**/vendor
+node_modules
+**/node_modules
+
+# 3. Ignore local-only project copies, exports, and design references
+westhub-admin
+westhub-admin.*
+Westhub.rar
+*.rar
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+UI images
+_project_docs
+.agent
+
+# 4. Ignore common files/directories we don't need
+fly.toml
+.vscode
+.idea
+.git
+**/.git
+.gitignore
+**/.gitignore
+.gitattributes
+**/.gitattributes
+.sass-cache
+**/.sass-cache
+**/*~
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+.phpunit.result.cache
+phpunit.xml
+tests
+README.md
+README_ADMIN.md
+public/hot
+public/storage
