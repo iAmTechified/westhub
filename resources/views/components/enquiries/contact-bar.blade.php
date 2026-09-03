@@ -5,13 +5,13 @@
             <!-- Contact Info -->
             <div class="w-full flex flex-wrap items-center justify-start md:justify-center lg:justify-start gap-5 md:gap-5">
                 <!-- Phone -->
-                <a href="tel:8156860060" class="flex items-center gap-2 group">
+                <a href="tel:{{ \App\Support\SiteSettings::contactPhoneTel() }}" class="flex items-center gap-2 group">
                     <div class="p-2 bg-primary-100 rounded-md flex items-center justify-center text-white flex-shrink-0 group-hover:bg-primary-100/80 transition-all duration-300">
                         <span class="inline-flex items-center justify-center w-[20px] h-[20px]">
                         <img src="{{ asset('assets/icons/Property 1=Phone.svg') }}" alt="" class="w-full brightness-0 invert">
                     </span>
                     </div>
-                    <span class="text-neutral-600 font-semibold text-sm md:text-xl">(815) 686-0060</span>
+                    <span class="text-neutral-600 font-semibold text-sm md:text-xl">{{ \App\Support\SiteSettings::contactPhone() }}</span>
                 </a>
 
                 <!-- Email -->

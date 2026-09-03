@@ -37,7 +37,7 @@
           "image": "{{ asset('/assets/images/Slide Image 1.webp') }}",
           "@id": "{{ url('/') }}",
           "url": "{{ url('/') }}",
-          "telephone": "+1-800-000-0000",
+          "telephone": "{{ \App\Support\SiteSettings::contactPhone() }}",
           "address": {
             "@type": "PostalAddress",
             "streetAddress": "123 Healthcare Ave",

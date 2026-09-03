@@ -28,6 +28,21 @@ class Index extends Component
             'enquiries_from_address' => ['label' => 'Enquiries & Contact Email', 'type' => 'email', 'placeholder' => 'info@westhubhealthcare.com'],
             'newsletter_from_address' => ['label' => 'Newsletter & Broadcast Email', 'type' => 'email', 'placeholder' => 'newsletter@westhubhealthcare.com'],
         ],
+        'appointments' => [
+            '_meta' => [
+                'icon' => 'calendar',
+                'description' => 'Appointments and scheduling configuration.',
+            ],
+            'calendly_url' => ['label' => 'Calendly Appointment Scheduling URL', 'type' => 'url', 'placeholder' => 'https://calendly.com/westhub/appointment'],
+        ],
+        'contact' => [
+            '_meta' => [
+                'icon' => 'phone',
+                'description' => 'Public contact information displayed across website headers, bars, and metadata.',
+            ],
+            'public_phone' => ['label' => 'Public Phone Number', 'type' => 'text', 'placeholder' => '+1 2246250423'],
+            'public_email' => ['label' => 'Public Contact Email', 'type' => 'email', 'placeholder' => 'info@westhubhealthcare.com'],
+        ],
         'password' => [
             '_meta' => [
                 'icon' => 'lock',

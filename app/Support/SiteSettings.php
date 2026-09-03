@@ -65,6 +65,23 @@ class SiteSettings
         return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : '';
     }
 
+    public static function contactPhone(): string
+    {
+        $phone = self::get('contact', 'public_phone')
+            ?? self::get('contact', 'phone')
+            ?? config('westhub.contact.phone', '+1 2246250423');
+
+        return trim((string) $phone) ?: '+1 2246250423';
+    }
+
+    public static function contactPhoneTel(): string
+    {
+        $phone = self::contactPhone();
+        $digits = preg_replace('/[^\d+]/', '', $phone);
+
+        return str_starts_with($digits, '+') ? $digits : '+' . $digits;
+    }
+
     public static function appointmentsEmail(): string
     {
         $email = self::get('mail', 'appointments_from_address')

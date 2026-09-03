@@ -81,9 +81,9 @@
                     <x-icon-calendar class="w-5 h-5"/>
                     Book Appointment
                 </x-button-primary>
-                <x-button-secondary href="tel:+13127744708" variant="outline" class="flex items-center gap-2 !py-3 !px-6 text-sm border-primary-100 text-primary-300 active:translate-y-0.5 transition-all">
+                <x-button-secondary href="tel:{{ \App\Support\SiteSettings::contactPhoneTel() }}" variant="outline" class="flex items-center gap-2 !py-3 !px-6 text-sm border-primary-100 text-primary-300 active:translate-y-0.5 transition-all">
                     <x-icon-phone class="w-5 h-5 text-primary-100"/>
-                    +1 (312) 774-4708
+                    {{ \App\Support\SiteSettings::contactPhone() }}
                 </x-button-secondary>
             </div>
 
@@ -194,9 +194,9 @@
                     <x-icon-calendar class="w-5 h-5"/>
                     Book Appointment
                 </x-button-primary>
-                <x-button-secondary href="tel:+13127744708" variant="outline" class="w-full !py-3 flex items-center justify-center gap-2 text-sm border-primary-100 text-primary-300 hover:bg-primary-100/5 active:translate-y-0.5 transition-all">
+                <x-button-secondary href="tel:{{ \App\Support\SiteSettings::contactPhoneTel() }}" variant="outline" class="w-full !py-3 flex items-center justify-center gap-2 text-sm border-primary-100 text-primary-300 hover:bg-primary-100/5 active:translate-y-0.5 transition-all">
                     <x-icon-phone class="w-5 h-5 text-primary-100"/>
-                    +1 (312) 774-4708
+                    {{ \App\Support\SiteSettings::contactPhone() }}
                 </x-button-secondary>
             </div>
         </div>
