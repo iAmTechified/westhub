@@ -16,3 +16,6 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Vite writes these while loading the config and leaves them behind on a crash
+vite.config.js.timestamp-*

@@ -24,6 +24,15 @@ deployment:
     # 5. Sync Admin Public Files to Subdomain public folder
     - /bin/rsync -a ./westhub-admin/public/ $ADMINPUBLICPATH/
 
+    # 5b. Prune stale hashed build assets.
+    #     Vite emits a new filename on every build and the syncs above never
+    #     delete, so build/assets/ accumulated one dead pair of files per deploy.
+    #     Scoped to build/ deliberately: --delete on a whole public folder would
+    #     also remove the storage symlink from step 6 and anything placed there
+    #     by hand.
+    - /bin/rsync -a --delete ./public/build/ $PUBLICPATH/build/
+    - /bin/rsync -a --delete ./westhub-admin/public/build/ $ADMINPUBLICPATH/build/
+
     # 6. Point both apps' /storage URLs at the one shared uploads folder, so an
     #    image uploaded in the admin is also served by the public website.
     #    Replaces the manual cpanel_setup.php script.
