@@ -13,6 +13,13 @@ return new class extends Migration
         }
 
         Schema::create('promo_claims', function (Blueprint $table) {
+            // cPanel's MySQL creates new tables as MyISAM unless told otherwise.
+            // MyISAM caps any key at 1000 bytes, which both the email index
+            // (255 chars = 1020) and (campaign, email) (1276) exceed under
+            // utf8mb4, and it silently discards the foreign keys below.
+            // InnoDB allows 3072 bytes and actually enforces them.
+            $table->engine('InnoDB');
+
             $table->id();
             $table->string('campaign', 64)->default('free_month')->index();
             $table->string('full_name');

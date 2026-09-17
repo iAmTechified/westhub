@@ -23,6 +23,11 @@ return new class extends Migration
         }
 
         Schema::connection($this->getConnection())->create('promo_claims', function (Blueprint $table) {
+            // Must match the admin migration's engine: MyISAM caps a key at
+            // 1000 bytes and the email and (campaign, email) indexes exceed it
+            // under utf8mb4.
+            $table->engine('InnoDB');
+
             $table->id();
             $table->string('campaign', 64)->default('free_month')->index();
             $table->string('full_name');
