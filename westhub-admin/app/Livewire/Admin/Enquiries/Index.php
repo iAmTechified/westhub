@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Enquiries;
 
+use Illuminate\Support\Facades\Gate;
 use App\Models\Appointment;
 use App\Models\AppointmentEvent;
 use App\Models\County;
@@ -28,6 +29,11 @@ class Index extends Component
     public array $filteredEnquiryIds = [];
     public ?int $processingEnquiryId = null;
     public ?string $processingAction = null;
+
+    public function mount(): void
+    {
+        Gate::authorize('enquiries.view');
+    }
 
     public function loadData(): void
     {
@@ -127,6 +133,8 @@ class Index extends Component
 
     public function assignToMe(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->processingEnquiryId = $id;
         $this->processingAction = 'assign';
 
@@ -155,6 +163,8 @@ class Index extends Component
 
     public function unassign(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->processingEnquiryId = $id;
         $this->processingAction = 'unassign';
 
@@ -183,21 +193,29 @@ class Index extends Component
 
     public function markConfirmed(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->transition($id, Appointment::STATUS_CONFIRMED, 'Enquiry marked as confirmed.');
     }
 
     public function markRescheduled(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->transition($id, Appointment::STATUS_RESCHEDULED, 'Enquiry marked as rescheduled.');
     }
 
     public function markCompleted(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->transition($id, Appointment::STATUS_COMPLETED, 'Enquiry marked as completed.');
     }
 
     public function markCancelled(int $id): void
     {
+        Gate::authorize('enquiries.manage');
+
         $this->transition($id, Appointment::STATUS_CANCELLED, 'Enquiry marked as cancelled.');
     }
 

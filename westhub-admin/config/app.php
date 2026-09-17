@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // The public website's address, for links in emails sent from the admin
+    // (for example the "book now" link in a resent promo voucher).
+    'public_site_url' => env('WESTHUB_PUBLIC_URL') ?: env('APP_URL'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

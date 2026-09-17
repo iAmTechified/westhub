@@ -17,8 +17,7 @@ class CareServicesWorkflowTest extends TestCase
 
     public function test_care_services_buttons_backed_by_livewire_methods_work(): void
     {
-        $user = User::factory()->create();
-        $this->actingAs($user);
+        $user = $this->actingAsAdmin();
 
         $service = Service::query()->create([
             'name' => 'Personal Care',
@@ -37,7 +36,7 @@ class CareServicesWorkflowTest extends TestCase
             ->set('groupIsActive', true)
             ->set('groupSortOrder', 1)
             ->call('saveGroup')
-            ->assertSet('feedbackMessage', 'Care service group created.');
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Care service group created.');
 
         $group = CareServiceGroup::query()->where('name', 'Home Assistance')->firstOrFail();
 
@@ -54,19 +53,19 @@ class CareServicesWorkflowTest extends TestCase
             ->set('itemIsActive', true)
             ->set('itemSortOrder', 1)
             ->call('saveItem')
-            ->assertSet('feedbackMessage', 'Care service item created.');
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Care service item created.');
 
         $item = CareServiceItem::query()->where('title', 'Medication Reminder')->firstOrFail();
 
         Livewire::test(CareServicesIndex::class)
             ->call('toggleGroupActive', $group->id)
-            ->assertSet('feedbackMessage', 'Group active state updated.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Group active state updated.')
             ->call('toggleItemActive', $item->id)
-            ->assertSet('feedbackMessage', 'Item active state updated.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Item active state updated.')
             ->call('setGroupStatus', $group->id, 'archived')
-            ->assertSet('feedbackMessage', 'Group status updated.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Group status updated.')
             ->call('setItemStatus', $item->id, 'archived')
-            ->assertSet('feedbackMessage', 'Item status updated.');
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Item status updated.');
 
         $group->refresh();
         $item->refresh();
@@ -108,17 +107,17 @@ class CareServicesWorkflowTest extends TestCase
 
         Livewire::test(CareServicesIndex::class)
             ->call('moveGroupDown', $groupA->id)
-            ->assertSet('feedbackMessage', 'Group order updated.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Group order updated.')
             ->call('moveItemDown', $itemA->id)
-            ->assertSet('feedbackMessage', 'Item order updated.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Item order updated.')
             ->call('promptDeleteItem', $itemB->id)
             ->assertSet('showDeleteModal', true)
             ->call('confirmDelete')
-            ->assertSet('feedbackMessage', 'Care service item deleted.')
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Care service item deleted.')
             ->call('promptDeleteGroup', $groupB->id)
             ->assertSet('showDeleteModal', true)
             ->call('confirmDelete')
-            ->assertSet('feedbackMessage', 'Care service group deleted.');
+            ->assertDispatched('admin-toast', fn ($event, $params) => ($params['message'] ?? null) === 'Care service group deleted.');
 
         $this->assertDatabaseMissing('care_service_items', ['id' => $itemB->id]);
         $this->assertDatabaseMissing('care_service_groups', ['id' => $groupB->id]);

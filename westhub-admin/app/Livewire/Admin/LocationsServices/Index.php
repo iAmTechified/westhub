@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\LocationsServices;
 
+use Illuminate\Support\Facades\Gate;
 use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Models\County;
 use App\Models\Township;
@@ -31,6 +32,11 @@ class Index extends Component
     public ?int $pendingDeleteId = null;
     public ?string $pendingDeleteLabel = null;
 
+    public function mount(): void
+    {
+        Gate::authorize('locations.view');
+    }
+
     public function loadData(): void
     {
         $this->readyToLoad = true;
@@ -45,12 +51,16 @@ class Index extends Component
 
     public function openCreateCountyModal(): void
     {
+        Gate::authorize('locations.manage');
+
         $this->resetCountyForm();
         $this->showCountyModal = true;
     }
 
     public function openEditCountyModal(int $id): void
     {
+        Gate::authorize('locations.manage');
+
         $county = County::query()->findOrFail($id);
 
         $this->editingCountyId = $county->id;
@@ -71,6 +81,8 @@ class Index extends Component
 
     public function saveCounty(): void
     {
+        Gate::authorize('locations.manage');
+
         $isEditing = $this->editingCountyId !== null;
 
         $validated = $this->validate([
@@ -107,6 +119,8 @@ class Index extends Component
 
     public function promptDeleteCounty(int $id): void
     {
+        Gate::authorize('locations.manage');
+
         $county = County::query()->findOrFail($id);
 
         $this->pendingDeleteType = 'county';
@@ -117,6 +131,8 @@ class Index extends Component
 
     public function openCreateTownshipModal(?int $countyId = null): void
     {
+        Gate::authorize('locations.manage');
+
         $this->resetTownshipForm();
         if ($countyId) {
             $this->selectedCountyId = $countyId;
@@ -127,6 +143,8 @@ class Index extends Component
 
     public function openEditTownshipModal(int $id): void
     {
+        Gate::authorize('locations.manage');
+
         $township = Township::query()->findOrFail($id);
 
         $this->editingTownshipId = $township->id;
@@ -146,6 +164,8 @@ class Index extends Component
 
     public function saveTownship(): void
     {
+        Gate::authorize('locations.manage');
+
         $isEditing = $this->editingTownshipId !== null;
 
         if (! $this->townshipCountyId && ! $this->selectedCountyId) {
@@ -191,6 +211,8 @@ class Index extends Component
 
     public function promptDeleteTownship(int $id): void
     {
+        Gate::authorize('locations.manage');
+
         $township = Township::query()->findOrFail($id);
 
         $this->pendingDeleteType = 'township';
@@ -209,6 +231,8 @@ class Index extends Component
 
     public function confirmDelete(): void
     {
+        Gate::authorize('locations.manage');
+
         if (! $this->pendingDeleteType || ! $this->pendingDeleteId) {
             return;
         }

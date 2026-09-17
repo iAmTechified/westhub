@@ -66,34 +66,35 @@
             <div class="glass-card p-6 space-y-6">
                 <h3 class="text-lg font-semibold border-b border-admin-stroke/50 pb-3">Access Control</h3>
                 
-                <div class="space-y-4">
-                    <label class="text-sm font-medium text-admin-ink">Feature Access</label>
+                <div class="space-y-4" x-data="{ open: null }">
+                    <div>
+                        <label class="text-sm font-medium text-admin-ink">Role</label>
+                        <p class="text-[11px] text-admin-muted mt-0.5">Each person has one role. The role decides everything they can open.</p>
+                    </div>
                     <div class="space-y-2">
-                        @foreach($permissions as $permission)
-                            <label class="flex items-center gap-3 p-3 rounded-lg border border-admin-stroke/50 hover:bg-white/5 cursor-pointer transition-colors">
-                                <input type="checkbox" wire:model="selectedPermissions" value="{{ $permission->name }}" class="h-4 w-4 rounded border-admin-stroke bg-admin-surface text-primary-500 focus:ring-primary-500/20">
-                                <div>
-                                    <p class="text-sm font-medium text-admin-ink">
-                                        {{ str($permission->name)->replace('access_', '')->replace('_', ' ')->title() }}
-                                    </p>
-                                    <p class="text-[11px] text-admin-muted">
-                                        @if($permission->name === 'access_articles') Manage blog posts, news, and categories.
-                                        @elseif($permission->name === 'access_applications') Review recruitment applications and join requests.
-                                        @elseif($permission->name === 'access_subscribers') Manage newsletter subscribers and mailing lists.
-                                        @elseif($permission->name === 'access_appointments') Manage clinical bookings and appointments.
-                                        @elseif($permission->name === 'access_gallery') Manage media albums and gallery items.
-                                        @elseif($permission->name === 'access_care_services') Configure care services and service groups.
-                                        @elseif($permission->name === 'access_locations') Manage operational locations and counties.
-                                        @elseif($permission->name === 'access_users') Create and manage administrative users.
-                                        @elseif($permission->name === 'access_settings') Manage global site settings and configurations.
-                                        @else Grant access to this feature.
-                                        @endif
-                                    </p>
+                        @foreach($roles as $option)
+                            <div wire:key="role-option-{{ $option['name'] }}" class="rounded-lg border transition-colors {{ $role === $option['name'] ? 'border-primary-100/70 bg-primary-100/10' : 'border-admin-stroke/50 hover:bg-white/5' }}">
+                                <label class="flex items-start gap-3 p-3 cursor-pointer">
+                                    <input type="radio" wire:model.live="role" value="{{ $option['name'] }}" class="mt-0.5 h-4 w-4 border-admin-stroke bg-admin-surface text-primary-500 focus:ring-primary-500/20">
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium text-admin-ink">{{ $option['label'] }}</p>
+                                        <p class="text-[11px] text-admin-muted">{{ $option['summary'] }}</p>
+                                    </div>
+                                </label>
+                                <div class="px-3 pb-3 -mt-1">
+                                    <button type="button" class="text-[11px] text-primary-100 underline" @click="open = open === '{{ $option['name'] }}' ? null : '{{ $option['name'] }}'">
+                                        <span x-text="open === '{{ $option['name'] }}' ? 'Hide what this allows' : 'What this allows'"></span>
+                                    </button>
+                                    <ul x-show="open === '{{ $option['name'] }}'" x-cloak class="mt-2 space-y-1 pl-4 list-disc text-[11px] text-admin-muted">
+                                        @foreach($option['grants'] as $grant)
+                                            <li>{{ $grant }}</li>
+                                        @endforeach
+                                    </ul>
                                 </div>
-                            </label>
+                            </div>
                         @endforeach
                     </div>
-                    @error('selectedPermissions') <p class="text-xs text-rose-300">{{ $message }}</p> @enderror
+                    @error('role') <p class="text-xs text-rose-300">{{ $message }}</p> @enderror
                 </div>
             </div>
 

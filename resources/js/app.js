@@ -1598,3 +1598,266 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-newsletter-form]').forEach(initNewsletterForm);
     initCalendlyBridge();
 });
+
+/* ------------------------------------------------------------------------
+ * Booking modal state
+ *
+ * The booking form lives once in the layout inside an Alpine modal driven by
+ * the `open-appointment` / `close-appointment` window events. Track it so the
+ * promo popup never stacks on top of an open booking form.
+ * ---------------------------------------------------------------------- */
+
+window.__westhubModalOpen = false;
+
+window.addEventListener('open-appointment', () => {
+    window.__westhubModalOpen = true;
+});
+
+window.addEventListener('close-appointment', () => {
+    window.__westhubModalOpen = false;
+});
+
+/* ------------------------------------------------------------------------
+ * Voucher links (?promo=CODE)
+ *
+ * A visitor arriving from the voucher email goes straight to booking with the
+ * voucher applied. This deliberately does not depend on the promo popup: the
+ * link must work on a different device (no localStorage), and after the
+ * campaign has been paused (when the popup markup is not rendered at all).
+ * ---------------------------------------------------------------------- */
+
+(() => {
+    let handled = false;
+
+    const openFromVoucherLink = () => {
+        if (handled) {
+            return;
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const code = (params.get('promo') || '').trim();
+
+        if (!code || !window.Livewire?.dispatch) {
+            return;
+        }
+
+        handled = true;
+
+        window.Livewire.dispatch('westhub-book-with-promo', { promoCode: code });
+        window.dispatchEvent(new CustomEvent('open-appointment'));
+
+        // Drop the code from the address bar so a refresh does not reopen it.
+        try {
+            params.delete('promo');
+            const query = params.toString();
+            window.history.replaceState(
+                window.history.state,
+                '',
+                window.location.pathname + (query ? `?${query}` : '') + window.location.hash
+            );
+        } catch (error) {
+            /* Not important: the booking form is already open. */
+        }
+    };
+
+    document.addEventListener('livewire:initialized', openFromVoucherLink);
+    document.addEventListener('livewire:navigated', openFromVoucherLink);
+
+    // Fallback in case the Livewire lifecycle event has already fired: Livewire
+    // starts on DOMContentLoaded, so run once more on the following tick.
+    document.addEventListener('DOMContentLoaded', () => window.setTimeout(openFromVoucherLink, 0));
+})();
+
+/* ------------------------------------------------------------------------
+ * Promo popup gate
+ *
+ * The server decides whether the campaign is live; this decides WHEN a live
+ * campaign is shown to a given visitor and remembers their choice so they are
+ * not nagged on every page view. Voucher links are handled above, not here.
+ * ---------------------------------------------------------------------- */
+
+window.westhubPromoGate = function (config) {
+    const settings = Object.assign(
+        { delay: 4000, scroll: 30, frequencyDays: 7, storageKey: 'westhub_promo' },
+        config || {}
+    );
+
+    const readState = () => {
+        try {
+            return JSON.parse(window.localStorage.getItem(settings.storageKey) || '{}') || {};
+        } catch (error) {
+            return {};
+        }
+    };
+
+    const writeState = (patch) => {
+        try {
+            window.localStorage.setItem(settings.storageKey, JSON.stringify(Object.assign(readState(), patch)));
+        } catch (error) {
+            /* Private browsing or blocked storage: the promo simply reappears next visit. */
+        }
+    };
+
+    return {
+        shown: false,
+        tabVisible: false,
+        claimed: false,
+        armed: false,
+        cleanups: [],
+        onBookingOpened: null,
+
+        init() {
+            // Handing off to the booking form closes the popup underneath it.
+            this.onBookingOpened = () => {
+                if (this.shown) {
+                    this.shown = false;
+                    this.lockScroll(false);
+                    this.tabVisible = !this.claimed;
+                }
+            };
+            window.addEventListener('open-appointment', this.onBookingOpened);
+
+            const state = readState();
+            this.claimed = Boolean(state.claimed);
+
+            let tabHiddenThisSession = false;
+            try {
+                tabHiddenThisSession = window.sessionStorage.getItem(settings.storageKey + '_tab_hidden') === '1';
+            } catch (error) {
+                tabHiddenThisSession = false;
+            }
+
+            // A visitor arriving from a voucher link is sent to booking instead.
+            const arrivedWithVoucher = new URLSearchParams(window.location.search).has('promo');
+
+            if (this.claimed || arrivedWithVoucher) {
+                this.tabVisible = !tabHiddenThisSession && !arrivedWithVoucher;
+
+                return;
+            }
+
+            if (this.suppressedByFrequencyCap(state)) {
+                this.tabVisible = !tabHiddenThisSession;
+
+                return;
+            }
+
+            this.arm();
+        },
+
+        suppressedByFrequencyCap(state) {
+            if (!state.dismissedAt || settings.frequencyDays <= 0) {
+                return false;
+            }
+
+            const elapsedDays = (Date.now() - Number(state.dismissedAt)) / 86400000;
+
+            return elapsedDays < settings.frequencyDays;
+        },
+
+        arm() {
+            if (this.armed) {
+                return;
+            }
+
+            this.armed = true;
+
+            const timer = window.setTimeout(() => this.trigger(), Math.max(0, settings.delay));
+            this.cleanups.push(() => window.clearTimeout(timer));
+
+            const onScroll = () => {
+                const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+                const progress = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 0;
+
+                if (progress >= settings.scroll) {
+                    this.trigger();
+                }
+            };
+            window.addEventListener('scroll', onScroll, { passive: true });
+            this.cleanups.push(() => window.removeEventListener('scroll', onScroll));
+
+            // Exit intent, pointer devices only.
+            if (window.matchMedia('(pointer: fine)').matches) {
+                const onLeave = (event) => {
+                    if (event.clientY <= 0) {
+                        this.trigger();
+                    }
+                };
+                document.addEventListener('mouseout', onLeave);
+                this.cleanups.push(() => document.removeEventListener('mouseout', onLeave));
+            }
+        },
+
+        disarm() {
+            this.cleanups.forEach((fn) => fn());
+            this.cleanups = [];
+            this.armed = false;
+        },
+
+        trigger() {
+            if (this.shown || this.claimed || window.__westhubModalOpen) {
+                return;
+            }
+
+            this.show();
+        },
+
+        show() {
+            this.disarm();
+            this.shown = true;
+            this.tabVisible = false;
+            this.lockScroll(true);
+
+            if (this.$wire) {
+                this.$wire.open();
+            }
+        },
+
+        reopen() {
+            this.show();
+        },
+
+        dismiss() {
+            this.shown = false;
+            this.lockScroll(false);
+            this.tabVisible = true;
+
+            if (!this.claimed) {
+                writeState({ dismissedAt: Date.now() });
+            }
+
+            if (this.$wire) {
+                this.$wire.close();
+            }
+        },
+
+        hideTabForSession() {
+            this.tabVisible = false;
+
+            try {
+                window.sessionStorage.setItem(settings.storageKey + '_tab_hidden', '1');
+            } catch (error) {
+                /* Nothing to do: the tab returns on the next visit. */
+            }
+        },
+
+        markClaimed(code) {
+            this.claimed = true;
+            this.disarm();
+            writeState({ claimed: true, code: code || null, claimedAt: Date.now() });
+        },
+
+        lockScroll(locked) {
+            document.documentElement.style.overflow = locked ? 'hidden' : '';
+        },
+
+        destroy() {
+            this.disarm();
+            this.lockScroll(false);
+
+            if (this.onBookingOpened) {
+                window.removeEventListener('open-appointment', this.onBookingOpened);
+            }
+        },
+    };
+};

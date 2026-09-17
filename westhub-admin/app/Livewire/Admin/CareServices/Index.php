@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\CareServices;
 
+use Illuminate\Support\Facades\Gate;
 use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Models\CareServiceGroup;
 use App\Models\CareServiceItem;
@@ -49,6 +50,11 @@ class Index extends Component
     public ?int $pendingDeleteId = null;
     public ?string $pendingDeleteLabel = null;
 
+    public function mount(): void
+    {
+        Gate::authorize('care_services.view');
+    }
+
     public function loadData(): void
     {
         $this->readyToLoad = true;
@@ -63,12 +69,16 @@ class Index extends Component
 
     public function openCreateGroupModal(): void
     {
+        Gate::authorize('care_services.manage');
+
         $this->resetGroupForm();
         $this->showGroupModal = true;
     }
 
     public function openEditGroupModal(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $group = CareServiceGroup::query()->findOrFail($id);
 
         $this->editingGroupId = $group->id;
@@ -88,6 +98,8 @@ class Index extends Component
 
     public function saveGroup(): void
     {
+        Gate::authorize('care_services.manage');
+
         $this->validate([
             'groupName' => ['required', 'string', 'max:255'],
             'groupDescription' => ['nullable', 'string'],
@@ -115,6 +127,8 @@ class Index extends Component
 
     public function openCreateItemModal(?int $groupId = null): void
     {
+        Gate::authorize('care_services.manage');
+
         $this->resetItemForm();
         $this->itemGroupId = $groupId;
         $this->showItemModal = true;
@@ -122,6 +136,8 @@ class Index extends Component
 
     public function openEditItemModal(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $item = CareServiceItem::query()->findOrFail($id);
 
         $this->editingItemId = $item->id;
@@ -145,6 +161,8 @@ class Index extends Component
 
     public function saveItem(): void
     {
+        Gate::authorize('care_services.manage');
+
         $this->validate([
             'itemGroupId' => ['required', 'exists:care_service_groups,id'],
             'itemServiceId' => ['nullable', 'exists:services,id'],
@@ -180,6 +198,8 @@ class Index extends Component
 
     public function toggleGroupActive(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $group = CareServiceGroup::query()->findOrFail($id);
         $group->update(['is_active' => ! $group->is_active]);
         $this->toastSuccess('Group active state updated.', 'Care Services');
@@ -187,6 +207,8 @@ class Index extends Component
 
     public function toggleItemActive(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $item = CareServiceItem::query()->findOrFail($id);
         $item->update(['is_active' => ! $item->is_active]);
         $this->toastSuccess('Item active state updated.', 'Care Services');
@@ -194,6 +216,8 @@ class Index extends Component
 
     public function setGroupStatus(int $id, string $status): void
     {
+        Gate::authorize('care_services.manage');
+
         if (! in_array($status, ['draft', 'published', 'archived'], true)) {
             return;
         }
@@ -209,6 +233,8 @@ class Index extends Component
 
     public function setItemStatus(int $id, string $status): void
     {
+        Gate::authorize('care_services.manage');
+
         if (! in_array($status, ['draft', 'published', 'archived'], true)) {
             return;
         }
@@ -224,6 +250,8 @@ class Index extends Component
 
     public function moveGroupUp(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $group = CareServiceGroup::query()->findOrFail($id);
 
         $previous = CareServiceGroup::query()
@@ -257,6 +285,8 @@ class Index extends Component
 
     public function moveGroupDown(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $group = CareServiceGroup::query()->findOrFail($id);
 
         $next = CareServiceGroup::query()
@@ -290,6 +320,8 @@ class Index extends Component
 
     public function moveItemUp(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $item = CareServiceItem::query()->findOrFail($id);
 
         $previous = CareServiceItem::query()
@@ -324,6 +356,8 @@ class Index extends Component
 
     public function moveItemDown(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $item = CareServiceItem::query()->findOrFail($id);
 
         $next = CareServiceItem::query()
@@ -358,6 +392,8 @@ class Index extends Component
 
     public function promptDeleteGroup(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $group = CareServiceGroup::query()->findOrFail($id);
 
         $this->pendingDeleteType = 'group';
@@ -368,6 +404,8 @@ class Index extends Component
 
     public function promptDeleteItem(int $id): void
     {
+        Gate::authorize('care_services.manage');
+
         $item = CareServiceItem::query()->findOrFail($id);
 
         $this->pendingDeleteType = 'item';
@@ -386,6 +424,8 @@ class Index extends Component
 
     public function confirmDelete(): void
     {
+        Gate::authorize('care_services.manage');
+
         if (! $this->pendingDeleteType || ! $this->pendingDeleteId) {
             return;
         }

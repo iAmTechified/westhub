@@ -27,3 +27,14 @@ When cPanel pulls the latest branch:
 4. It executes `composer install` for both applications to install PHP dependencies.
 
 *(Note: Frontend assets are pre-compiled and tracked via the `/public/build` directory, so Node.js/NPM is not required on the production server).*
+
+Deployment does **not** run migrations or create cron jobs; those are manual steps. Both apps must
+also share one `SETTINGS_ENCRYPTION_KEY` and one `PUBLIC_STORAGE_PATH`, or encrypted settings and
+admin-uploaded images will not work on the public site.
+
+## Documentation
+
+* **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**: environment setup, email, Google integrations, cPanel
+  deployment, migrations, cron jobs, roles and handover.
+* **[docs/FEATURES.md](docs/FEATURES.md)**: how the promo campaign, booking providers and admin roles
+  behave.

@@ -10,14 +10,18 @@
                 <p class="mt-2 text-admin-muted">Manage your mailing list, export subscriber data, and send out email broadcasts.</p>
             </div>
             <div class="flex items-center gap-3">
+                @can('subscribers.export')
                 <button type="button" wire:click="exportCsv" class="admin-ghost-btn gap-2 h-[46px] px-5">
                     <x-admin.icon name="refresh" class="h-4 w-4" />
                     Export CSV
                 </button>
+                @endcan
+                @can('subscribers.send')
                 <button type="button" @click="showNewsletterModal = true" wire:click="openNewsletterModal" class="admin-primary-btn gap-2 h-[46px] px-6">
                     <x-admin.icon name="mail" class="h-4 w-4" />
                     Send Newsletter
                 </button>
+                @endcan
             </div>
         </div>
 
@@ -132,9 +136,10 @@
                                     {{ $subscriber->subscribed_at?->format('d M Y, H:i') ?: 'N/A' }}
                                 </td>
                                 <td class="p-4 text-right">
+                                    @can('subscribers.manage')
                                     <div class="inline-flex items-center gap-2">
-                                        <button type="button" 
-                                                wire:click="toggleStatus({{ $subscriber->id }})" 
+                                        <button type="button"
+                                                wire:click="toggleStatus({{ $subscriber->id }})"
                                                 class="admin-icon-btn h-9 w-9" 
                                                 title="{{ $subscriber->status === 'subscribed' ? 'Unsubscribe' : 'Resubscribe' }}">
                                             <x-admin.icon name="{{ $subscriber->status === 'subscribed' ? 'close' : 'check' }}" class="h-4 w-4" />
@@ -147,6 +152,7 @@
                                             <x-admin.icon name="trash" class="h-4 w-4" />
                                         </button>
                                     </div>
+                                    @endcan
                                 </td>
                             </tr>
                         @empty

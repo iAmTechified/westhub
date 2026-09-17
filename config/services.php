@@ -31,8 +31,27 @@ return [
         ],
     ],
 
+    /*
+    | These are FALLBACKS only. The live values are read from the shared
+    | `settings` table via App\Support\SiteSettings so they can be changed in
+    | the admin without a deploy. Env is used when a setting has never been
+    | saved.
+    */
+
+    'appointments' => [
+        'provider' => env('APPOINTMENT_PROVIDER', 'calendly'),
+    ],
+
     'calendly' => [
         'appointment_url' => env('CALENDLY_APPOINTMENT_URL'),
+    ],
+
+    'google_calendar' => [
+        'calendar_id' => env('GOOGLE_CALENDAR_ID'),
+        'service_account_email' => env('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
+        'private_key' => env('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'),
+        'timezone' => env('GOOGLE_CALENDAR_TIMEZONE', env('APP_TIMEZONE', 'UTC')),
+        'default_event_duration' => (int) env('GOOGLE_CALENDAR_EVENT_DURATION_MINUTES', 60),
     ],
 
     'google_sheets' => [

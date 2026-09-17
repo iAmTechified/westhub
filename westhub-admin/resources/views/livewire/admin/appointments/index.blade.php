@@ -84,9 +84,11 @@
                                 </td>
                                 <td class="p-3 text-right">
                                     <div class="inline-flex items-center gap-2">
+                                        @can('appointments.manage')
                                         <button type="button" @click.stop wire:click="openEmailModal({{ $appointment->id }})" class="admin-icon-btn" title="Send email">
                                             <x-admin.icon name="mail" class="h-4 w-4" />
                                         </button>
+                                        @endcan
                                     </div>
                                 </td>
                             </tr>
@@ -124,10 +126,12 @@
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
+                        @can('appointments.manage')
                         <button type="button" wire:click="openEmailModal({{ $activeAppointment->id }})" class="admin-primary-btn h-10 px-4">
                             <x-admin.icon name="mail" class="h-4 w-4" />
                             <span>Email</span>
                         </button>
+                        @endcan
                         <button type="button" @click="showModal = false; $wire.closeDetails()" class="admin-icon-btn h-10 w-10" title="Close">
                             <x-admin.icon name="close" class="h-4 w-4" />
                         </button>

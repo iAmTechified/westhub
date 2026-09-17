@@ -7,10 +7,12 @@
                 User Management
             </h2>
         </div>
-        <a href="{{ route('admin.users.create') }}" class="admin-primary-btn gap-2">
-            <x-admin.icon name="plus" class="h-4 w-4" />
-            <span>Add User</span>
-        </a>
+        @can('users.manage')
+            <a href="{{ route('admin.users.create') }}" class="admin-primary-btn gap-2">
+                <x-admin.icon name="plus" class="h-4 w-4" />
+                <span>Add User</span>
+            </a>
+        @endcan
     </div>
 
     <div class="glass-card p-2">
@@ -27,14 +29,14 @@
                     <tr>
                         <th class="text-left p-4">Name</th>
                         <th class="text-left p-4">Email</th>
-                        <th class="text-left p-4">Roles</th>
+                        <th class="text-left p-4">Role</th>
                         <th class="text-left p-4">Joined</th>
                         <th class="text-right p-4">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-admin-stroke/50">
                     @forelse($users as $user)
-                        <tr class="hover:bg-white/5 transition-colors">
+                        <tr class="hover:bg-white/5 transition-colors" wire:key="admin-user-{{ $user->id }}">
                             <td class="p-4">
                                 <div class="flex items-center gap-3">
                                     <div class="h-8 w-8 rounded-full bg-primary-500/20 flex items-center justify-center text-primary-200 font-bold text-xs">
@@ -46,25 +48,32 @@
                             <td class="p-4 text-admin-muted">{{ $user->email }}</td>
                             <td class="p-4">
                                 <div class="flex flex-wrap gap-1">
-                                    @foreach($user->roles as $role)
+                                    @forelse($user->roles as $role)
                                         <span class="px-2 py-0.5 rounded text-[10px] bg-white/10 text-admin-ink border border-admin-stroke">
-                                            {{ str($role->name)->replace('_', ' ')->title() }}
+                                            {{ $roleLabels[$role->name] ?? str($role->name)->replace('_', ' ')->title() }}
                                         </span>
-                                    @endforeach
+                                    @empty
+                                        {{-- Without a role this person is signed straight back out of the admin. --}}
+                                        <span class="px-2 py-0.5 rounded text-[10px] bg-rose-500/15 text-rose-300 border border-rose-500/40" title="Cannot sign in to the admin until a role is assigned">
+                                            No role
+                                        </span>
+                                    @endforelse
                                 </div>
                             </td>
                             <td class="p-4 text-admin-muted">{{ $user->created_at->format('M d, Y') }}</td>
                             <td class="p-4 text-right">
-                                <div class="inline-flex items-center gap-2">
-                                    <a href="{{ route('admin.users.edit', $user) }}" class="admin-icon-btn" title="Edit">
-                                        <x-admin.icon name="edit" class="h-4 w-4" />
-                                    </a>
-                                    @if($user->id !== auth()->id())
-                                        <button type="button" class="admin-icon-btn text-rose-400" wire:click="confirmDelete({{ $user->id }})" title="Delete">
-                                            <x-admin.icon name="trash" class="h-4 w-4" />
-                                        </button>
-                                    @endif
-                                </div>
+                                @can('users.manage')
+                                    <div class="inline-flex items-center gap-2">
+                                        <a href="{{ route('admin.users.edit', $user) }}" class="admin-icon-btn" title="Edit">
+                                            <x-admin.icon name="edit" class="h-4 w-4" />
+                                        </a>
+                                        @if($user->id !== auth()->id())
+                                            <button type="button" class="admin-icon-btn text-rose-400" wire:click="confirmDelete({{ $user->id }})" title="Delete">
+                                                <x-admin.icon name="trash" class="h-4 w-4" />
+                                            </button>
+                                        @endif
+                                    </div>
+                                @endcan
                             </td>
                         </tr>
                     @empty

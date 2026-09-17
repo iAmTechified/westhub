@@ -2,13 +2,17 @@
 
 namespace App\Livewire;
 
+use App\Exceptions\Appointments\SlotUnavailableException;
 use App\Models\Appointment;
 use App\Models\AppointmentEvent;
 use App\Models\County;
 use App\Models\Service;
 use App\Models\Township;
+use App\Services\Appointments\AppointmentProviderManager;
+use App\Services\Promotions\PromoClaimService;
 use App\Support\LocationData;
 use App\Support\SiteSettings;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\On;
@@ -33,9 +37,115 @@ class BookAppointment extends Component
     public ?int $appointmentId = null;
     public ?string $calendlyUrl = null;
 
+    /** "calendly" or "google", chosen in the admin and read live from settings. */
+    public string $provider = AppointmentProviderManager::CALENDLY;
+
+    /* ---- Google Calendar scheduling state ---- */
+    public array $availableDates = [];
+    public string $selectedDate = '';
+    /** Never name this $slots: it collides with Livewire v4's slot handling. */
+    public array $timeSlots = [];
+    public string $selectedSlot = '';
+    public ?string $scheduledLabel = null;
+    public ?string $meetUrl = null;
+    public ?string $calendarLink = null;
+    public ?string $scheduleError = null;
+
+    /* ---- Promo voucher ---- */
+    public ?string $promoCode = null;
+    public ?string $promoMessage = null;
+    public bool $promoValid = false;
+
     public function mount(): void
     {
+        $this->provider = SiteSettings::appointmentProvider();
         $this->calendlyUrl = SiteSettings::calendlyAppointmentUrl();
+    }
+
+    /**
+     * The booking modal lives once in the layout and persists across opens, so
+     * the promo popup (or a ?promo= voucher link) hands the voucher over with
+     * this event instead of mount arguments.
+     */
+    #[On('westhub-book-with-promo')]
+    public function prefillFromPromo(
+        ?string $promoCode = null,
+        ?string $prefillName = null,
+        ?string $prefillEmail = null,
+        ?string $prefillPhone = null,
+        ?string $prefillServiceId = null,
+    ): void {
+        $this->resetErrorBag();
+        $this->reset([
+            'submitted',
+            'calendlyScheduled',
+            'calendlyStatus',
+            'appointmentId',
+            'availableDates',
+            'selectedDate',
+            'timeSlots',
+            'selectedSlot',
+            'scheduledLabel',
+            'meetUrl',
+            'calendarLink',
+            'scheduleError',
+            'promoCode',
+            'promoMessage',
+            'promoValid',
+        ]);
+
+        $this->provider = SiteSettings::appointmentProvider();
+        $this->calendlyUrl = SiteSettings::calendlyAppointmentUrl();
+
+        if (filled($prefillName)) {
+            $this->fullName = (string) $prefillName;
+        }
+
+        if (filled($prefillEmail)) {
+            $this->email = (string) $prefillEmail;
+        }
+
+        if (filled($prefillPhone)) {
+            $this->phone = (string) $prefillPhone;
+        }
+
+        if (filled($prefillServiceId)) {
+            $this->serviceId = (string) $prefillServiceId;
+        }
+
+        $this->applyPromoCode($promoCode);
+    }
+
+    /**
+     * Validate a voucher up front so the visitor sees it is recognised before
+     * they commit to filling in the form.
+     */
+    public function applyPromoCode(?string $code): void
+    {
+        $code = strtoupper(trim((string) $code));
+
+        if ($code === '') {
+            return;
+        }
+
+        $this->promoCode = $code;
+
+        $claim = app(PromoClaimService::class)->findRedeemable($code);
+
+        if ($claim) {
+            $this->promoValid = true;
+            $this->promoMessage = 'Free-month voucher applied.';
+
+            $this->fullName = $this->fullName ?: (string) $claim->full_name;
+            $this->email = $this->email ?: (string) $claim->email;
+            $this->phone = $this->phone ?: (string) ($claim->phone ?? '');
+            $this->serviceId = $this->serviceId ?: (string) ($claim->service_id ?? '');
+
+            return;
+        }
+
+        $this->promoValid = false;
+        $this->promoMessage = 'We could not find an active voucher with that code. You can still book as normal.';
     }
 
     public function updatedCountyId(): void
@@ -100,12 +210,129 @@ class BookAppointment extends Component
         $this->recordEvent($appointment, 'created', null, $appointment->status);
 
         $this->appointmentId = $appointment->id;
-        $this->calendlyUrl = SiteSettings::calendlyAppointmentUrlFor($appointment);
         $this->submitted = true;
+
+        if ($this->provider === AppointmentProviderManager::GOOGLE) {
+            $this->startGoogleScheduling();
+
+            return;
+        }
+
+        $this->calendlyUrl = SiteSettings::calendlyAppointmentUrlFor($appointment);
         $this->calendlyStatus = $this->calendlyUrl ? 'opening' : 'unconfigured';
 
         if ($this->calendlyUrl) {
             $this->dispatch('westhub-open-calendly', url: $this->calendlyUrl, appointmentId: $appointment->id);
+        }
+    }
+
+    /* ------------------------------------------------------------------
+     | Google Calendar scheduling
+     ------------------------------------------------------------------ */
+
+    protected function providers(): AppointmentProviderManager
+    {
+        return app(AppointmentProviderManager::class);
+    }
+
+    protected function startGoogleScheduling(): void
+    {
+        $manager = $this->providers();
+
+        if (! $manager->isConfigured()) {
+            // Lead is captured; we just cannot offer times yet.
+            $this->scheduleError = 'unconfigured';
+
+            return;
+        }
+
+        $this->availableDates = $manager->availableDates();
+
+        if ($this->availableDates === []) {
+            $this->scheduleError = 'no_availability';
+
+            return;
+        }
+
+        $this->selectDate($this->availableDates[0]['date']);
+    }
+
+    public function selectDate(string $date): void
+    {
+        $this->scheduleError = null;
+        $this->selectedSlot = '';
+        $this->selectedDate = $date;
+        $this->timeSlots = $this->providers()->slotsFor($date);
+
+        if ($this->timeSlots === []) {
+            $this->scheduleError = 'no_slots_for_day';
+        }
+    }
+
+    public function confirmSlot(string $start, PromoClaimService $promos): void
+    {
+        if (! $this->appointmentId) {
+            return;
+        }
+
+        $appointment = Appointment::query()->with(['service', 'county', 'township'])->find($this->appointmentId);
+
+        if (! $appointment) {
+            return;
+        }
+
+        try {
+            $result = $this->providers()->schedule($appointment, Carbon::parse($start));
+        } catch (SlotUnavailableException) {
+            $this->scheduleError = 'slot_taken';
+            $this->selectDate($this->selectedDate);
+
+            return;
+        } catch (Throwable $e) {
+            report($e);
+            $this->scheduleError = 'failed';
+
+            return;
+        }
+
+        $this->selectedSlot = $start;
+        $this->meetUrl = $result['meet_url'];
+        $this->calendarLink = $result['html_link'];
+        $this->scheduledLabel = Carbon::parse($start)
+            ->setTimezone($this->providers()->google()->timezone())
+            ->format('l j F Y \a\t g:i A');
+        $this->scheduleError = null;
+
+        $this->recordEvent($appointment->fresh(), 'google_scheduled', Appointment::STATUS_NEW, $appointment->status);
+        $this->redeemPromo($appointment, $promos);
+    }
+
+    public function chooseAnotherTime(): void
+    {
+        $this->selectedSlot = '';
+        $this->scheduledLabel = null;
+        $this->startGoogleScheduling();
+    }
+
+    /**
+     * Mark the voucher used and link it to the appointment that consumed it.
+     */
+    protected function redeemPromo(Appointment $appointment, PromoClaimService $promos): void
+    {
+        if (! $this->promoCode) {
+            return;
+        }
+
+        $claim = $promos->findRedeemable($this->promoCode);
+
+        if (! $claim) {
+            return;
+        }
+
+        try {
+            $promos->markRedeemed($claim, $appointment->id);
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 
@@ -147,6 +374,8 @@ class BookAppointment extends Component
         $this->recordEvent($appointment->fresh(), 'calendly_scheduled_browser', $oldStatus, Appointment::STATUS_CONFIRMED);
         $this->calendlyScheduled = true;
         $this->calendlyStatus = 'scheduled';
+
+        $this->redeemPromo($appointment->fresh(), app(PromoClaimService::class));
     }
 
     #[On('calendlyClosed')]
@@ -190,13 +419,15 @@ class BookAppointment extends Component
 
     protected function appointmentMeta(array $countySelection, array $townshipSelection): array
     {
-        $meta = [
-            'calendly_url' => SiteSettings::calendlyAppointmentUrl(),
-            'calendly_integration' => 'javascript_embed',
+        $meta = array_filter([
+            'provider' => $this->provider,
+            'calendly_url' => $this->provider === AppointmentProviderManager::CALENDLY ? SiteSettings::calendlyAppointmentUrl() : null,
+            'calendly_integration' => $this->provider === AppointmentProviderManager::CALENDLY ? 'javascript_embed' : null,
+            'promo_code' => $this->promoValid ? $this->promoCode : null,
             'submitted_from' => request()->fullUrl(),
             'timezone' => SiteSettings::appointmentTimezone(),
             'user_agent' => str(request()->userAgent() ?? '')->limit(500)->toString(),
-        ];
+        ], static fn ($value): bool => ! is_null($value));
 
         $locationPreference = array_filter([
             'county_name' => $countySelection['name'],
@@ -479,6 +710,8 @@ class BookAppointment extends Component
             'counties' => $this->countyOptions(),
             'services' => $this->options(Service::class),
             'townships' => $this->townshipOptions(),
+            'usesGoogle' => $this->provider === AppointmentProviderManager::GOOGLE,
+            'bookingTimezone' => SiteSettings::appointmentTimezone(),
         ]);
     }
 }

@@ -10,12 +10,12 @@
 
     <section class="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         @php($kpi = [
-            ['label' => 'Published Articles', 'key' => 'published_articles', 'icon' => 'article', 'permission' => 'access_articles'],
-            ['label' => 'Pending Applications', 'key' => 'pending_applications', 'icon' => 'briefcase', 'permission' => 'access_applications'],
-            ['label' => 'Pending Appointments', 'key' => 'pending_appointments', 'icon' => 'calendar', 'permission' => 'access_appointments'],
-            ['label' => 'Scheduled Articles', 'key' => 'scheduled_articles', 'icon' => 'sort', 'permission' => 'access_articles'],
-            ['label' => 'Published Gallery', 'key' => 'published_gallery_items', 'icon' => 'image', 'permission' => 'access_gallery'],
-            ['label' => 'Active Services', 'key' => 'active_services', 'icon' => 'pulse', 'permission' => 'access_care_services'],
+            ['label' => 'Published Articles', 'key' => 'published_articles', 'icon' => 'article', 'permission' => 'articles.view'],
+            ['label' => 'Pending Applications', 'key' => 'pending_applications', 'icon' => 'briefcase', 'permission' => 'join_requests.view'],
+            ['label' => 'Pending Appointments', 'key' => 'pending_appointments', 'icon' => 'calendar', 'permission' => 'appointments.view'],
+            ['label' => 'Scheduled Articles', 'key' => 'scheduled_articles', 'icon' => 'sort', 'permission' => 'articles.view'],
+            ['label' => 'Published Gallery', 'key' => 'published_gallery_items', 'icon' => 'image', 'permission' => 'gallery.view'],
+            ['label' => 'Active Services', 'key' => 'active_services', 'icon' => 'pulse', 'permission' => 'care_services.view'],
         ])
         @foreach($kpi as $card)
             @can($card['permission'])
@@ -65,7 +65,7 @@
         </div>
         @endif
 
-        @can('access_articles')
+        @can('articles.view')
         <div class="glass-card p-5">
             <h3 class="text-lg font-semibold">Recent Article Activity</h3>
             <div class="mt-4 space-y-2">
@@ -88,7 +88,7 @@
         @endcan
     </section>
 
-    @can('access_applications')
+    @can('join_requests.view')
     <section class="grid gap-4 xl:grid-cols-1">
         <div class="glass-card p-5">
             <h3 class="text-lg font-semibold">Recent Applications</h3>

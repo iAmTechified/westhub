@@ -52,53 +52,61 @@
             </div>
 
             <nav class="space-y-1">
+                @can('dashboard.view')
                 <a href="{{ route('admin.dashboard') }}" class="admin-nav-link {{ request()->routeIs('admin.dashboard') ? 'is-active' : '' }}">
                     <x-admin.icon name="dashboard" class="h-4 w-4" />
                     Dashboard
                 </a>
-                @can('access_articles')
+                @endcan
+                @can('articles.view')
                 <a href="{{ route('admin.articles.index') }}" class="admin-nav-link {{ request()->routeIs('admin.articles.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="article" class="h-4 w-4" />
                     Articles
                 </a>
                 @endcan
-                @can('access_applications')
+                @can('join_requests.view')
                 <a href="{{ route('admin.join-requests.index') }}" class="admin-nav-link {{ request()->routeIs('admin.join-requests.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="briefcase" class="h-4 w-4" />
                     Applications
                 </a>
                 @endcan
-                @can('access_subscribers')
+                @can('subscribers.view')
                 <a href="{{ route('admin.subscribers.index') }}" class="admin-nav-link {{ request()->routeIs('admin.subscribers.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="mail" class="h-4 w-4" />
                     Subscribers
                 </a>
                 @endcan
-                @can('access_appointments')
+                @can('appointments.view')
                 <a href="{{ route('admin.appointments.index') }}" class="admin-nav-link {{ request()->routeIs('admin.appointments.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="calendar" class="h-4 w-4" />
                     Appointments
                 </a>
                 @endcan
-                @can('access_gallery')
+                @can('promos.view')
+                <a href="{{ route('admin.promo-claims.index') }}" class="admin-nav-link {{ request()->routeIs('admin.promo-claims.*') ? 'is-active' : '' }}">
+                    <x-admin.icon name="gift" class="h-4 w-4" />
+                    Promo Claims
+                </a>
+                @endcan
+                @can('gallery.view')
                 <a href="{{ route('admin.gallery.index') }}" class="admin-nav-link {{ request()->routeIs('admin.gallery.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="image" class="h-4 w-4" />
                     Gallery
                 </a>
                 @endcan
-                @can('access_care_services')
+                @can('care_services.view')
                 <a href="{{ route('admin.care-services.index') }}" class="admin-nav-link {{ request()->routeIs('admin.care-services.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="pulse" class="h-4 w-4" />
                     Care Services
                 </a>
                 @endcan
-                @can('access_locations')
+                @can('locations.view')
                 <a href="{{ route('admin.locations.index') }}" class="admin-nav-link {{ request()->routeIs('admin.locations.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="location" class="h-4 w-4" />
                     Locations
                 </a>
                 @endcan
-                @can('access_users')
+                @can('users.view')
                 <a href="{{ route('admin.users.index') }}" class="admin-nav-link {{ request()->routeIs('admin.users.*') ? 'is-active' : '' }}">
                     <x-admin.icon name="team" class="h-4 w-4" />
                     Users

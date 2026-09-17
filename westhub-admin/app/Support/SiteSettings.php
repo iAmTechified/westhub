@@ -2,56 +2,145 @@
 
 namespace App\Support;
 
-use App\Models\Appointment;
 use App\Models\Setting;
-use Illuminate\Contracts\Encryption\DecryptException;
-use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Throwable;
 
+/**
+ * Live reader for the shared `settings` table, admin side.
+ *
+ * Values are read straight from the database so a change saved in the admin
+ * takes effect immediately, with no deploy and no config:cache clear. Reads are
+ * memoised per request and a whole group is loaded in one query.
+ *
+ * Note on the connection: the admin app has no `content` database connection.
+ * This class previously asked for one, the call threw, and the error was
+ * swallowed, so every admin read silently returned its default. It now uses
+ * the Setting model's own connection.
+ */
 class SiteSettings
 {
-    protected static array $values = [];
+    /** @var array<string, array<string, string|null>> group => key => value */
+    protected static array $groups = [];
 
-    /** @var array<string, bool> Per-request cache for Schema::hasTable checks. */
-    protected static array $tableExists = [];
+    protected static ?bool $tableExists = null;
 
     public static function get(string $group, string $key, ?string $default = null): ?string
     {
-        $cacheKey = "{$group}.{$key}";
+        $value = self::group($group)[$key] ?? null;
 
-        if (array_key_exists($cacheKey, self::$values)) {
-            return self::$values[$cacheKey] ?? $default;
+        return is_null($value) || $value === '' ? $default : $value;
+    }
+
+    public static function bool(string $group, string $key, bool $default = false): bool
+    {
+        $value = self::get($group, $key);
+
+        if (is_null($value)) {
+            return $default;
+        }
+
+        return in_array(strtolower(trim($value)), ['1', 'true', 'on', 'yes', 'enabled'], true);
+    }
+
+    public static function int(string $group, string $key, int $default = 0): int
+    {
+        $value = self::get($group, $key);
+
+        return is_null($value) || ! is_numeric(trim($value)) ? $default : (int) trim($value);
+    }
+
+    public static function date(string $group, string $key): ?Carbon
+    {
+        $value = self::get($group, $key);
+
+        if (is_null($value)) {
+            return null;
         }
 
         try {
-            $connection = config('database.content_connection', 'content');
-
-            if (! self::settingsTableExists($connection)) {
-                return self::$values[$cacheKey] = $default;
-            }
-
-            $setting = Setting::query()
-                ->where('group', $group)
-                ->where('key', $key)
-                ->first(['value', 'is_encrypted']);
-
-            if (! $setting || is_null($setting->value)) {
-                return self::$values[$cacheKey] = $default;
-            }
-
-            if (! $setting->is_encrypted) {
-                return self::$values[$cacheKey] = trim((string) $setting->value) ?: $default;
-            }
-
-            try {
-                return self::$values[$cacheKey] = trim(Crypt::decryptString((string) $setting->value)) ?: $default;
-            } catch (DecryptException) {
-                return self::$values[$cacheKey] = $default;
-            }
+            return Carbon::parse($value);
         } catch (Throwable) {
-            return self::$values[$cacheKey] = $default;
+            return null;
         }
+    }
+
+    /** @return array<string, string|null> */
+    public static function group(string $group): array
+    {
+        if (array_key_exists($group, self::$groups)) {
+            return self::$groups[$group];
+        }
+
+        return self::$groups[$group] = self::loadGroup($group);
+    }
+
+    public static function flush(?string $group = null): void
+    {
+        if ($group === null) {
+            self::$groups = [];
+            self::$tableExists = null;
+
+            return;
+        }
+
+        unset(self::$groups[$group]);
+    }
+
+    /** @return array<string, string|null> */
+    protected static function loadGroup(string $group): array
+    {
+        try {
+            if (! self::settingsTableExists()) {
+                return [];
+            }
+
+            return Setting::query()
+                ->where('group', $group)
+                ->get(['key', 'value', 'is_encrypted'])
+                ->mapWithKeys(fn (Setting $setting): array => [$setting->key => self::decode($setting)])
+                ->all();
+        } catch (Throwable $e) {
+            Log::warning('SiteSettings could not read the settings group "' . $group . '": ' . $e->getMessage());
+
+            return [];
+        }
+    }
+
+    protected static function settingsTableExists(): bool
+    {
+        if (self::$tableExists !== null) {
+            return self::$tableExists;
+        }
+
+        return self::$tableExists = Schema::connection((new Setting)->getConnectionName())->hasTable('settings');
+    }
+
+    protected static function decode(Setting $setting): ?string
+    {
+        if (is_null($setting->value)) {
+            return null;
+        }
+
+        // Strict comparison: "0" is a real value (a switched-off toggle) but it
+        // is falsy in PHP, so ?: would silently discard it.
+        if (! $setting->is_encrypted) {
+            $value = trim((string) $setting->value);
+
+            return $value === '' ? null : $value;
+        }
+
+        $decrypted = SettingsCrypto::decrypt((string) $setting->value);
+
+        if (is_null($decrypted)) {
+            return null;
+        }
+
+        $decrypted = trim($decrypted);
+
+        return $decrypted === '' ? null : $decrypted;
     }
 
     public static function contactEmail(): string
@@ -130,14 +219,23 @@ class SiteSettings
         return 'mailto:' . $email . ($subject ? '?subject=' . rawurlencode($subject) : '');
     }
 
-    private static function settingsTableExists(string $connection): bool
+    /** Which appointment provider to use: "calendly" or "google". */
+    public static function appointmentProvider(): string
     {
-        $cacheKey = "table_exists_{$connection}_settings";
+        $provider = strtolower((string) self::get('appointments', 'provider', config('services.appointments.provider', 'calendly')));
 
-        if (! array_key_exists($cacheKey, self::$tableExists)) {
-            self::$tableExists[$cacheKey] = Schema::connection($connection)->hasTable('settings');
-        }
+        return in_array($provider, ['calendly', 'google'], true) ? $provider : 'calendly';
+    }
 
-        return self::$tableExists[$cacheKey];
+    public static function calendlyAppointmentUrl(): ?string
+    {
+        $url = self::get('appointments', 'calendly_url', config('services.calendly.appointment_url'));
+
+        return filled($url) ? $url : null;
+    }
+
+    public static function appointmentTimezone(): string
+    {
+        return (string) (self::get('appointments', 'timezone') ?: config('app.timezone', 'UTC'));
     }
 }

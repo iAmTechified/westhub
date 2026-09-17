@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\JoinRequests;
 
+use Illuminate\Support\Facades\Gate;
 use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Mail\JoinRequestContactMail;
 use App\Models\JoinRequest;
@@ -51,6 +52,11 @@ class Index extends Component
         'professional_type',
         'reviewed_at',
     ];
+
+    public function mount(): void
+    {
+        Gate::authorize('join_requests.view');
+    }
 
     public function loadData(): void
     {
@@ -157,6 +163,8 @@ class Index extends Component
 
     public function openEmailModal(int $id): void
     {
+        Gate::authorize('join_requests.decide');
+
         $joinRequest = JoinRequest::query()->findOrFail($id);
         
         $this->emailRequestId = $id;
@@ -187,6 +195,8 @@ class Index extends Component
 
     public function sendEmail(): void
     {
+        Gate::authorize('join_requests.decide');
+
         $this->validate([
             'emailSubject' => 'required|string|max:255',
             'emailBody' => 'required|string|min:12',

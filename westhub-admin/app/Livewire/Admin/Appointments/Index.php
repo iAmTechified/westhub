@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Appointments;
 
+use Illuminate\Support\Facades\Gate;
 use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Mail\AppointmentContactMail;
 use App\Models\Appointment;
@@ -30,6 +31,11 @@ class Index extends Component
     public string $emailSubject = '';
     public string $emailBody = '';
     public ?int $emailAppointmentId = null;
+
+    public function mount(): void
+    {
+        Gate::authorize('appointments.view');
+    }
 
     public function loadData(): void
     {
@@ -72,6 +78,8 @@ class Index extends Component
 
     public function openEmailModal(int $id): void
     {
+        Gate::authorize('appointments.manage');
+
         $appointment = Appointment::query()->findOrFail($id);
         $eventName = $appointment->event_type_name ?: ($appointment->service?->name ?: 'care appointment');
         $scheduledAt = $appointment->scheduled_at
@@ -115,6 +123,8 @@ class Index extends Component
 
     public function sendEmail(): void
     {
+        Gate::authorize('appointments.manage');
+
         $this->validate([
             'emailSubject' => 'required|string|max:255',
             'emailBody' => 'required|string|min:12',

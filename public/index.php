@@ -20,6 +20,17 @@ if (file_exists($maintenance = $basePath.'/storage/framework/maintenance.php')) 
 // Register the Composer autoloader...
 require $basePath.'/vendor/autoload.php';
 
-// Bootstrap Laravel and handle the request...
-(require_once $basePath.'/bootstrap/app.php')
-    ->handleRequest(Request::capture());
+// Bootstrap Laravel...
+$app = require_once $basePath.'/bootstrap/app.php';
+
+// On cPanel this file is served from public_html, but Laravel assumes the public
+// folder is <basePath>/public, which the deploy never creates. Without this,
+// public_path() points at a missing folder, so @vite cannot find
+// build/manifest.json and bundled images under public/assets are not found.
+// In a standard layout the two paths are identical and nothing changes.
+if (realpath($basePath.'/public') !== realpath(__DIR__)) {
+    $app->usePublicPath(__DIR__);
+}
+
+// Handle the request...
+$app->handleRequest(Request::capture());

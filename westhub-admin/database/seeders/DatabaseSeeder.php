@@ -3,34 +3,16 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Support\AdminPermissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Define Feature Permissions
-        $permissions = [
-            'access_articles',
-            'access_applications',
-            'access_subscribers',
-            'access_appointments',
-            'access_gallery',
-            'access_care_services',
-            'access_locations',
-            'access_users',
-            'access_settings',
-        ];
-
-        foreach ($permissions as $permission) {
-            Permission::findOrCreate($permission);
-        }
-
-        // Only super_admin is explicitly defined as a role
-        Role::findOrCreate('super_admin');
+        // Roles and permissions must exist before the admin user is given one.
+        $this->call(RolesAndPermissionsSeeder::class);
 
         $admin = User::query()->firstOrCreate(
             ['email' => env('ADMIN_EMAIL', 'admin@westhub.local')],
@@ -40,9 +22,10 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        $admin->assignRole('super_admin');
+        $admin->assignRole(AdminPermissions::SUPER_ADMIN);
 
         $this->call([
+            SettingsSeeder::class,
             LocationSeeder::class,
             TestimonialSeeder::class,
             JoinRequestSeeder::class,

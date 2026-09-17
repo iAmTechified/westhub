@@ -6,6 +6,7 @@ use App\Models\Concerns\UsesContentConnection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
@@ -54,7 +55,8 @@ class Article extends Model implements HasMedia
     {
         return SlugOptions::create()
             ->generateSlugsFrom('title')
-            ->saveSlugsTo('slug');
+            ->saveSlugsTo('slug')
+            ->doNotGenerateSlugsOnUpdate();
     }
 
     public function scopePubliclyVisible($query)
@@ -181,11 +183,22 @@ class Article extends Model implements HasMedia
             return $path;
         }
 
-        if (Str::startsWith($path, ['/storage/', 'storage/', '/assets/', 'assets/'])) {
+        // Bundled public assets are served from the app itself.
+        if (Str::startsWith($path, ['/assets/', 'assets/'])) {
             return asset(ltrim($path, '/'));
         }
 
-        return asset('storage/'.ltrim($path, '/'));
+        // Everything else is storage-relative; resolve it through the public disk so a
+        // configured PUBLIC_STORAGE_URL (e.g. a separate storage host) is honoured.
+        $relativePath = ltrim($path, '/');
+        if (Str::startsWith($relativePath, 'storage/')) {
+            $relativePath = substr($relativePath, strlen('storage/'));
+        }
+
+        $url = Storage::disk('public')->url($relativePath);
+
+        // A root-relative disk URL (the default "/storage") stays absolute, as before, for OG tags etc.
+        return Str::startsWith($url, ['http://', 'https://', '//']) ? $url : asset(ltrim($url, '/'));
     }
 
     protected function hasContentColumn(string $column): bool

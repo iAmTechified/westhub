@@ -29,6 +29,20 @@ return [
         'credentials_json' => env('SEARCH_CONSOLE_CREDENTIALS_JSON'),
     ],
 
+    /*
+    | Fallbacks only. Live values come from the shared `settings` table via
+    | App\Support\SiteSettings and can be changed in admin Settings with no
+    | deploy. Env is used when a setting has never been saved.
+    */
+
+    'appointments' => [
+        'provider' => env('APPOINTMENT_PROVIDER', 'calendly'),
+    ],
+
+    'calendly' => [
+        'appointment_url' => env('CALENDLY_APPOINTMENT_URL'),
+    ],
+
     'google_calendar' => [
         'calendar_id' => env('GOOGLE_CALENDAR_ID'),
         'service_account_email' => env('GOOGLE_SERVICE_ACCOUNT_EMAIL'),

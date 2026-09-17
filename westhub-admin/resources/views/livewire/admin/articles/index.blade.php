@@ -1,5 +1,6 @@
 @php
-    $statusOptions = ['draft', 'published', 'archived', 'trashed'];
+    // 'trashed' is intentionally excluded: trashing must go through deleteArticle (soft delete).
+    $statusOptions = ['draft', 'published', 'archived'];
 @endphp
 
 <div
@@ -36,6 +37,10 @@
             const localViewMode = window.localStorage.getItem('westhub:articles:view-mode');
             if (['table', 'cards', 'list', 'grid'].includes(localViewMode)) {
                 this.uiViewMode = localViewMode;
+                {{-- Only the active view mode is rendered server-side, so sync the server when the locally remembered mode differs. --}}
+                if (localViewMode !== $wire.viewMode) {
+                    $wire.setViewMode(localViewMode);
+                }
             }
             window.addEventListener('category-created', () => { this.createCategoryOpen = false; });
             window.addEventListener('category-updated', () => { this.editCategoryOpen = false; });
@@ -44,8 +49,10 @@
         },
         switchView(mode) {
             if (!['table', 'cards', 'list', 'grid'].includes(mode)) return;
+            if (this.uiViewMode === mode && $wire.viewMode === mode) return;
             this.uiViewMode = mode;
             window.localStorage.setItem('westhub:articles:view-mode', mode);
+            $wire.setViewMode(mode);
             this.persistViewPreference(mode);
         },
         persistViewPreference(mode) {
@@ -206,7 +213,7 @@
 
     <div class="relative min-h-[400px]">
         {{-- Loading State: View-mode aware skeletons --}}
-        <div wire:loading wire:target="search,status,sortBy,sortDirection,retryLoading,setStatus,loadData,setCategory" class="absolute inset-0 z-10 bg-admin-surface/50 backdrop-blur-[1px]">
+        <div wire:loading wire:target="search,status,sortBy,sortDirection,retryLoading,setStatus,loadData,setCategory,setViewMode" class="absolute inset-0 z-10 bg-admin-surface/50 backdrop-blur-[1px]">
             <div x-show="uiViewMode === 'table'" class="glass-card overflow-hidden">
                 <div class="p-3 bg-white/5 flex gap-4">
                     <div class="admin-skeleton h-4 w-24"></div>
@@ -266,7 +273,7 @@
         </div>
 
         {{-- Content State --}}
-        <div wire:loading.remove wire:target="search,status,sortBy,sortDirection,retryLoading,setStatus,loadData,setCategory">
+        <div wire:loading.remove wire:target="search,status,sortBy,sortDirection,retryLoading,setStatus,loadData,setCategory,setViewMode">
             @if(! $readyToLoad)
                 <div class="glass-card p-5 space-y-3">
                     <div class="admin-skeleton h-8 w-1/3"></div>
@@ -294,8 +301,9 @@
                     @endif
                 </div>
             @else
-                {{-- Actual Article Content (Tables, Cards, etc.) --}}
-                <div x-show="uiViewMode === 'table'">
+                {{-- Actual Article Content: only the active view mode is rendered (avoids duplicate DOM and image fetches). --}}
+                @if($viewMode === 'table')
+                <div wire:key="articles-view-table">
                     <div class="glass-card relative z-[95] overflow-visible">
                         <div class="overflow-x-auto">
                             <table class="w-full min-w-[1000px] text-sm">
@@ -311,7 +319,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($articles as $article)
-                                        <tr class="border-t border-admin-stroke hover:bg-white/5 transition-colors duration-[140ms]">
+                                        <tr wire:key="article-table-{{ $article->id }}" class="border-t border-admin-stroke hover:bg-white/5 transition-colors duration-[140ms]">
                                             <td class="p-3">
                                                 <input
                                                     type="text"
@@ -360,11 +368,11 @@
                         </div>
                     </div>
                 </div>
-
-                <div x-show="uiViewMode === 'cards'">
+                @elseif($viewMode === 'cards')
+                <div wire:key="articles-view-cards">
                     <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                         @foreach($articles as $article)
-                            <article class="glass-card p-4 space-y-3 lift-on-hover">
+                            <article wire:key="article-cards-{{ $article->id }}" class="glass-card p-4 space-y-3 lift-on-hover">
                                 @if($article->headline_image_path)
                                     <img src="{{ $article->headlineImageUrl() }}" alt="{{ $article->title }}" class="rounded-xl border border-admin-stroke w-full h-40 object-cover">
                                 @endif
@@ -409,11 +417,11 @@
                         @endforeach
                     </div>
                 </div>
-
-                <div x-show="uiViewMode === 'grid'">
+                @elseif($viewMode === 'grid')
+                <div wire:key="articles-view-grid">
                     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         @foreach($articles as $article)
-                            <article class="glass-card p-4 space-y-2 lift-on-hover">
+                            <article wire:key="article-grid-{{ $article->id }}" class="glass-card p-4 space-y-2 lift-on-hover">
                                 @if($article->headline_image_path)
                                     <img src="{{ $article->headlineImageUrl() }}" alt="{{ $article->title }}" class="rounded-xl border border-admin-stroke w-full h-28 object-cover">
                                 @endif
@@ -456,11 +464,11 @@
                         @endforeach
                     </div>
                 </div>
-
-                <div x-show="uiViewMode === 'list'">
+                @else
+                <div wire:key="articles-view-list">
                     <div class="glass-card p-4 space-y-2">
                         @foreach($articles as $article)
-                            <div class="admin-row-item">
+                            <div wire:key="article-list-{{ $article->id }}" class="admin-row-item">
                                 <div class="min-w-0 flex-1 space-y-1">
                                     <input
                                         type="text"
@@ -501,6 +509,7 @@
                         @endforeach
                     </div>
                 </div>
+                @endif
             @endif
         </div>
 

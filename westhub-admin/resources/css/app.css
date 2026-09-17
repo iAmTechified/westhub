@@ -412,6 +412,11 @@ body {
         border-color: rgba(244, 63, 94, 0.35);
     }
 
+    .admin-request-feedback.is-warning {
+        color: var(--warning, #f59e0b);
+        border-color: rgba(245, 158, 11, 0.38);
+    }
+
     .admin-label {
         @apply mb-1 block text-xs uppercase tracking-[0.12em];
         color: var(--muted);

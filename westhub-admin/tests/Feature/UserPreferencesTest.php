@@ -16,13 +16,12 @@ class UserPreferencesTest extends TestCase
 
     public function test_articles_preferences_are_saved_for_view_sort_status_and_category(): void
     {
-        $user = User::factory()->create();
+        $user = $this->actingAsAdmin();
         $category = ArticleCategory::create([
             'name' => 'Guides',
             'is_active' => true,
         ]);
 
-        $this->actingAs($user);
 
         Livewire::test(ArticlesIndex::class)
             ->call('setViewMode', 'grid')
@@ -45,7 +44,7 @@ class UserPreferencesTest extends TestCase
 
     public function test_articles_preferences_are_loaded_on_mount(): void
     {
-        $user = User::factory()->create();
+        $user = $this->actingAsAdmin();
         $category = ArticleCategory::create([
             'name' => 'News',
             'is_active' => true,
@@ -63,7 +62,6 @@ class UserPreferencesTest extends TestCase
             ],
         ]);
 
-        $this->actingAs($user);
 
         Livewire::test(ArticlesIndex::class)
             ->assertSet('viewMode', 'cards')

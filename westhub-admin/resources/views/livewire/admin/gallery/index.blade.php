@@ -10,8 +10,14 @@
         
         {{-- Selection State --}}
         selectedIds: [],
-        allVisibleIds: @js($pageItemIds),
-        
+        {{-- Read live from the component so it tracks paging/filtering (Alpine state survives morphs). --}}
+        get allVisibleIds() { return (this.$wire.pageItemIds || []).map(id => String(id)); },
+
+        init() {
+            {{-- Clear the selection whenever the visible page of items changes (paging, filters, search, sort). --}}
+            this.$watch('$wire.pageItemIds', () => { this.selectedIds = []; });
+        },
+
         isSelected(id) { return this.selectedIds.includes(String(id)); },
         
         toggleSelect(id) {
@@ -38,6 +44,7 @@
         setTab(tab) { this.activeTab = tab; $wire.setStatus(tab).then(() => { this.selectedIds = []; }); },
         setCat(id) { this.activeCategory = id; $wire.setCategory(id).then(() => { this.selectedIds = []; }); }
     }"
+    x-on:gallery-selection-reset.window="selectedIds = []"
 >
     
     {{-- Header & View Modes --}}
@@ -143,7 +150,7 @@
                 </div>
                 <h3 class="text-xl font-bold">Studio Empty</h3>
                 <p class="mt-2 text-admin-muted max-w-md mx-auto">No media assets found matching your current filter criteria.</p>
-                <button type="button" @click="itemModalOpen = true; isLoadingItem = true; $wire.openEditModal().then(() => isLoadingItem = false)" class="admin-primary-btn mt-8">
+                <button type="button" @click="itemModalOpen = true; isLoadingItem = true; $wire.openCreateModal().then(() => isLoadingItem = false)" class="admin-primary-btn mt-8">
                     Upload Your First Asset
                 </button>
             </div>
@@ -153,7 +160,7 @@
                     <div class="glass-card divide-y divide-admin-stroke overflow-hidden">
                         @foreach($items as $item)
                             @php($imageUrl = $item->getFirstMediaUrl('gallery'))
-                            <article class="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors group">
+                            <article wire:key="gallery-list-{{ $item->id }}" class="flex items-center justify-between p-4 hover:bg-white/[0.02] transition-colors group">
                                 <div class="flex items-center gap-4">
                                     <label class="admin-check-wrap !mb-0 cursor-pointer">
                                         <input type="checkbox" :checked="isSelected('{{ $item->id }}')" @change="toggleSelect('{{ $item->id }}')" class="peer sr-only">
@@ -203,7 +210,7 @@
                     <div class="columns-1 gap-6 sm:columns-2 xl:columns-4">
                         @foreach($items as $item)
                             @php($imageUrl = $item->getFirstMediaUrl('gallery'))
-                            <article class="glass-card mb-6 break-inside-avoid overflow-hidden group hover:border-primary-500/50 transition-all duration-300 relative" :class="isSelected('{{ $item->id }}') ? 'border-primary-500/50 bg-primary-500/[0.03]' : ''">
+                            <article wire:key="gallery-masonry-{{ $item->id }}" class="glass-card mb-6 break-inside-avoid overflow-hidden group hover:border-primary-500/50 transition-all duration-300 relative" :class="isSelected('{{ $item->id }}') ? 'border-primary-500/50 bg-primary-500/[0.03]' : ''">
                                 <div class="relative min-h-[180px] bg-admin-bg" x-data="{ loaded: false }">
                                     <div x-show="!loaded" class="absolute inset-0 admin-skeleton"></div>
                                     
@@ -248,7 +255,7 @@
                     <div class="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
                         @foreach($items as $item)
                             @php($imageUrl = $item->getFirstMediaUrl('gallery'))
-                            <article class="glass-card overflow-hidden group hover:border-primary-500/50 transition-all duration-300 lift-on-hover relative" :class="isSelected('{{ $item->id }}') ? 'border-primary-500/50 bg-primary-500/[0.03]' : ''">
+                            <article wire:key="gallery-grid-{{ $item->id }}" class="glass-card overflow-hidden group hover:border-primary-500/50 transition-all duration-300 lift-on-hover relative" :class="isSelected('{{ $item->id }}') ? 'border-primary-500/50 bg-primary-500/[0.03]' : ''">
                                 <div class="relative h-56 bg-admin-bg overflow-hidden" x-data="{ loaded: false }">
                                     <div x-show="!loaded" class="absolute inset-0 admin-skeleton"></div>
                                     
@@ -352,7 +359,7 @@
                 
                 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     @foreach($dropUploads as $index => $upload)
-                        <div class="glass-card p-4 flex items-center gap-4 group/staged relative overflow-hidden" x-data="{ loaded: false }">
+                        <div wire:key="gallery-staged-{{ $index }}-{{ md5($upload->getFilename()) }}" class="glass-card p-4 flex items-center gap-4 group/staged relative overflow-hidden" x-data="{ loaded: false }">
                             <div class="h-16 w-16 rounded-xl overflow-hidden border border-admin-stroke bg-admin-bg relative flex-shrink-0">
                                 <img src="{{ $upload->temporaryUrl() }}" class="h-full w-full object-cover">
                             </div>

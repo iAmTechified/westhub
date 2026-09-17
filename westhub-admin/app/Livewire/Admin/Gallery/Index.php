@@ -9,6 +9,7 @@ use App\Models\GalleryItem;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -69,6 +70,8 @@ class Index extends Component
 
     public function mount(): void
     {
+        Gate::authorize('gallery.view');
+
         $preferences = AdminPreference::query()
             ->where('user_id', Auth::id())
             ->where('module', 'gallery')
@@ -117,6 +120,8 @@ class Index extends Component
 
     public function bulkUpdate(string $status, array $ids): void
     {
+        Gate::authorize('gallery.publish');
+
         if (empty($ids)) {
             $this->setFeedback('Select at least one item first.', 'error');
             return;
@@ -127,18 +132,33 @@ class Index extends Component
             return;
         }
 
-        GalleryItem::query()->whereIn('id', $ids)->update([
-            'status' => $status,
-            'published_at' => $status === GalleryItem::STATUS_PUBLISHED ? now() : null,
-            'updated_at' => now(),
-        ]);
+        $now = now();
+
+        DB::transaction(function () use ($ids, $status, $now): void {
+            GalleryItem::query()->whereIn('id', $ids)->update([
+                'status' => $status,
+                'updated_at' => $now,
+            ]);
+
+            // Keep the original publish date on items that were already published;
+            // only stamp items that have never been published. Never clear it.
+            if ($status === GalleryItem::STATUS_PUBLISHED) {
+                GalleryItem::query()
+                    ->whereIn('id', $ids)
+                    ->whereNull('published_at')
+                    ->update(['published_at' => $now]);
+            }
+        });
 
         $this->setFeedback('Bulk update completed.', 'success');
         $this->resetPage();
+        $this->dispatch('gallery-selection-reset');
     }
 
     public function updateItemStatus(int $id, string $status): void
     {
+        Gate::authorize('gallery.publish');
+
         if (! in_array($status, self::STATUSES, true)) {
             $this->setFeedback('Unsupported status.', 'error');
             return;
@@ -147,7 +167,7 @@ class Index extends Component
         $item = GalleryItem::query()->findOrFail($id);
         $item->update([
             'status' => $status,
-            'published_at' => $status === GalleryItem::STATUS_PUBLISHED ? ($item->published_at ?? now()) : null,
+            'published_at' => $status === GalleryItem::STATUS_PUBLISHED ? ($item->published_at ?? now()) : $item->published_at,
         ]);
 
         $this->setFeedback('Status updated to '.ucfirst($status).'.', 'success');
@@ -183,6 +203,8 @@ class Index extends Component
 
     public function updatedDropUploads(): void
     {
+        Gate::authorize('gallery.edit');
+
         if ($this->dropUploads === []) {
             $this->dropUploadDetails = [];
             return;
@@ -230,6 +252,8 @@ class Index extends Component
 
     public function uploadStagedUploads(): void
     {
+        Gate::authorize('gallery.edit');
+
         if ($this->dropUploads === []) {
             $this->setFeedback('Select at least one file to upload.', 'error');
             return;
@@ -241,6 +265,11 @@ class Index extends Component
             'dropUploadDetails.*.status' => ['required', 'in:'.implode(',', self::STATUSES)],
             'dropUploadDetails.*.sort_order' => ['required', 'integer', 'min:0'],
         ]);
+
+        // Uploading straight to "published" is a publish action.
+        if (collect($this->dropUploadDetails)->contains(fn ($details) => ($details['status'] ?? null) === GalleryItem::STATUS_PUBLISHED)) {
+            Gate::authorize('gallery.publish');
+        }
 
         $created = 0;
 
@@ -316,6 +345,8 @@ class Index extends Component
 
     public function saveItem(): void
     {
+        Gate::authorize('gallery.edit');
+
         $rules = [
             'title' => ['required', 'string', 'max:255'],
             'altText' => ['nullable', 'string', 'max:255'],
@@ -336,6 +367,10 @@ class Index extends Component
             ? GalleryItem::query()->findOrFail($this->editingItemId)
             : new GalleryItem();
 
+        if ($this->itemStatus === GalleryItem::STATUS_PUBLISHED && $item->status !== GalleryItem::STATUS_PUBLISHED) {
+            Gate::authorize('gallery.publish');
+        }
+
         $item->fill([
             'gallery_category_id' => $this->galleryCategoryId,
             'title' => $this->title,
@@ -343,7 +378,7 @@ class Index extends Component
             'caption' => $this->caption,
             'status' => $this->itemStatus,
             'sort_order' => $this->sortOrder,
-            'published_at' => $this->itemStatus === GalleryItem::STATUS_PUBLISHED ? ($item->published_at ?? now()) : null,
+            'published_at' => $this->itemStatus === GalleryItem::STATUS_PUBLISHED ? ($item->published_at ?? now()) : $item->published_at,
         ]);
         $item->save();
 
@@ -364,6 +399,8 @@ class Index extends Component
 
     public function createCategory(): void
     {
+        Gate::authorize('gallery.edit');
+
         $this->validate([
             'newCategoryName' => ['required', 'string', 'max:255'],
             'newCategoryDescription' => ['nullable', 'string', 'max:1000'],
@@ -392,6 +429,8 @@ class Index extends Component
 
     public function confirmDelete(): void
     {
+        Gate::authorize('gallery.edit');
+
         if ($this->pendingDeleteItemId === null) return;
 
         $item = GalleryItem::query()->findOrFail($this->pendingDeleteItemId);
@@ -407,6 +446,8 @@ class Index extends Component
 
     public function confirmBulkDelete(array $ids): void
     {
+        Gate::authorize('gallery.edit');
+
         if (empty($ids)) return;
 
         $items = GalleryItem::query()->whereIn('id', $ids)->get();
@@ -419,6 +460,7 @@ class Index extends Component
         $this->showBulkDeleteModal = false;
         $this->setFeedback(count($items).' items deleted.', 'success');
         $this->resetPage();
+        $this->dispatch('gallery-selection-reset');
     }
 
     public function render()

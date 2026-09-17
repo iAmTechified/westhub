@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Admin\Subscribers;
 
+use Illuminate\Support\Facades\Gate;
 use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Mail\Admin\NewsletterMail;
 use App\Models\Subscriber;
@@ -38,6 +39,11 @@ class Index extends Component
         'source',
         'subscribed_at',
     ];
+
+    public function mount(): void
+    {
+        Gate::authorize('subscribers.view');
+    }
 
     public function updatedSearch(): void
     {
@@ -80,6 +86,8 @@ class Index extends Component
 
     public function toggleStatus(int $id): void
     {
+        Gate::authorize('subscribers.manage');
+
         $subscriber = Subscriber::query()->findOrFail($id);
         $subscriber->status = $subscriber->status === Subscriber::STATUS_SUBSCRIBED
             ? Subscriber::STATUS_UNSUBSCRIBED
@@ -102,6 +110,8 @@ class Index extends Component
 
     public function deleteSubscriber(int $id): void
     {
+        Gate::authorize('subscribers.manage');
+
         $subscriber = Subscriber::query()->findOrFail($id);
         $email = $subscriber->email;
         $subscriber->delete();
@@ -111,6 +121,8 @@ class Index extends Component
 
     public function exportCsv()
     {
+        Gate::authorize('subscribers.export');
+
         $subscribers = $this->baseQuery()->get();
         $filename = 'subscribers-' . now()->format('Y-m-d-His') . '.csv';
         
@@ -143,6 +155,8 @@ class Index extends Component
 
     public function openNewsletterModal(): void
     {
+        Gate::authorize('subscribers.send');
+
         $this->newsletterSubject = 'Update from WestHub Healthcare';
         $this->showNewsletterModal = true;
     }
@@ -155,6 +169,8 @@ class Index extends Component
 
     public function sendNewsletter(): void
     {
+        Gate::authorize('subscribers.send');
+
         $this->validate([
             'newsletterSubject' => 'required|string|max:255',
             'newsletterBody' => 'required|string|min:20',

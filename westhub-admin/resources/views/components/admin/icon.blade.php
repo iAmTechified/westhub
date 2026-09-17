@@ -335,6 +335,12 @@
         </svg>
         @break
 
+    @case('gift')
+        <svg {{ $attributes->merge(['class' => $class]) }} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 11h16v9H4v-9ZM3 7.5h18V11H3V7.5ZM12 7.5V20M12 7.5c-2.6-4.4-6.6-2.9-5.3 0M12 7.5c2.6-4.4 6.6-2.9 5.3 0" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        @break
+
     @default
         <svg {{ $attributes->merge(['class' => $class]) }} viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>

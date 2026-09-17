@@ -1,29 +1,44 @@
 ---
 deployment:
   tasks:
-    # 1. Define Paths 
+    # 1. Define Paths
     - export DEPLOYPATH=/home/westgpac/westhub
     - export PUBLICPATH=/home/westgpac/public_html
     - export ADMINPUBLICPATH=/home/westgpac/westhub/admin/public
-    
-    # 2. Sync Application Core Files (Excluding public folders and git, and excluding local westhub-admin so we can move it explicitly)
-    - /bin/rsync -a --exclude='.git' --exclude='public' --exclude='westhub-admin' ./ $DEPLOYPATH/
-    
+    # One uploads folder shared by both apps. Set PUBLIC_STORAGE_PATH to this
+    # exact path in the .env of BOTH the website and the admin.
+    - export SHAREDSTORAGE=/home/westgpac/westhub/storage/app/public
+
+    # 2. Sync Application Core Files
+    #    Excludes are anchored with a leading slash. Unanchored, --exclude='public'
+    #    also skipped every nested folder named "public", including
+    #    storage/app/public, so uploads had no folder to live in.
+    - /bin/rsync -a --exclude='/.git' --exclude='/public' --exclude='/westhub-admin' ./ $DEPLOYPATH/
+
     # 3. Sync Admin Core Files (Renaming westhub-admin to admin on the server)
-    - /bin/rsync -a --exclude='public' ./westhub-admin/ $DEPLOYPATH/admin/
-    
+    - /bin/rsync -a --exclude='/public' ./westhub-admin/ $DEPLOYPATH/admin/
+
     # 4. Sync Main Public Files to public_html
     - /bin/rsync -a ./public/ $PUBLICPATH/
-    
+
     # 5. Sync Admin Public Files to Subdomain public folder
     - /bin/rsync -a ./westhub-admin/public/ $ADMINPUBLICPATH/
-    
-    # 6. Install Dependencies (Main)
+
+    # 6. Point both apps' /storage URLs at the one shared uploads folder, so an
+    #    image uploaded in the admin is also served by the public website.
+    #    Replaces the manual cpanel_setup.php script.
+    - mkdir -p $SHAREDSTORAGE
+    - ln -sfn $SHAREDSTORAGE $PUBLICPATH/storage
+    - ln -sfn $SHAREDSTORAGE $ADMINPUBLICPATH/storage
+
+    # 7. Install Dependencies (Main)
     - cd $DEPLOYPATH && composer install --optimize-autoloader --no-dev
-    
-    # 7. Install Dependencies (Admin)
+
+    # 8. Install Dependencies (Admin)
     - cd $DEPLOYPATH/admin && composer install --optimize-autoloader --no-dev
-    
-    # 8. Optimize & Cache
+
+    # 9. Optimize & Cache
+    #    Migrations are deliberately NOT run here. Run them by hand after
+    #    reviewing what is pending (see docs/DEPLOYMENT.md).
     - cd $DEPLOYPATH && php artisan config:cache && php artisan route:cache && php artisan view:cache
     - cd $DEPLOYPATH/admin && php artisan config:cache && php artisan route:cache && php artisan view:cache

@@ -23,8 +23,127 @@
         </button>
     </div>
 
-    @if ($submitted)
+    @if ($submitted && $usesGoogle)
+        {{-- ============ Google Calendar: pick a real slot ============ --}}
         <div class="grid gap-5 px-5 py-6 md:px-7">
+            @if ($scheduledLabel)
+                <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+                    <p class="font-display text-xl font-bold text-emerald-800">Appointment confirmed</p>
+                    <p class="mt-2 text-sm leading-6 text-emerald-900">
+                        {{ $scheduledLabel }} ({{ $bookingTimezone }}).
+                        A calendar invitation is on its way to {{ $email }}.
+                    </p>
+                    @if ($meetUrl)
+                        <a href="{{ $meetUrl }}" target="_blank" rel="noopener"
+                           class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-emerald-800 underline">
+                            Join with Google Meet
+                        </a>
+                    @endif
+                </div>
+
+                @if ($promoValid && $promoCode)
+                    <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
+                        Free-month voucher {{ $promoCode }} has been applied to this booking.
+                    </div>
+                @endif
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <button type="button" wire:click="chooseAnotherTime"
+                            class="inline-flex items-center justify-center rounded-full border border-neutral-200 px-5 py-3 text-sm font-bold text-neutral-500 transition hover:border-primary-100 hover:text-primary-300">
+                        Choose another time
+                    </button>
+                    <button type="button" @click="$dispatch('close-appointment')"
+                            class="inline-flex items-center justify-center rounded-full bg-primary-100 px-5 py-3 text-sm font-bold text-white transition hover:bg-primary-300">
+                        Done
+                    </button>
+                </div>
+            @elseif ($scheduleError === 'unconfigured' || $scheduleError === 'no_availability')
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-5">
+                    <p class="font-display text-lg font-bold text-amber-900">Request saved</p>
+                    <p class="mt-2 text-sm leading-6 text-amber-900">
+                        @if ($scheduleError === 'unconfigured')
+                            Online scheduling is not switched on yet, so we have saved your request and a coordinator will call you to agree a time.
+                        @else
+                            There are no open times in the current booking window. Your request is saved and a coordinator will call you with options.
+                        @endif
+                    </p>
+                </div>
+                <button type="button" @click="$dispatch('close-appointment')"
+                        class="inline-flex items-center justify-center rounded-full bg-primary-100 px-5 py-3 text-sm font-bold text-white transition hover:bg-primary-300">
+                    Close
+                </button>
+            @else
+                <div>
+                    <p class="font-display text-xl font-bold text-primary-300">Pick a time that suits you</p>
+                    <p class="mt-1 text-sm text-neutral-500">
+                        Times shown in {{ $bookingTimezone }}. You will get a calendar invitation by email.
+                    </p>
+                </div>
+
+                @if ($scheduleError === 'slot_taken')
+                    <p class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">
+                        That time was just taken. Please pick another.
+                    </p>
+                @elseif ($scheduleError === 'failed')
+                    <p class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">
+                        We could not complete the booking. Your request is saved and we will call you.
+                    </p>
+                @endif
+
+                <div class="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                    @foreach ($availableDates as $date)
+                        <button
+                            type="button"
+                            wire:key="booking-date-{{ $date['date'] }}"
+                            wire:click="selectDate('{{ $date['date'] }}')"
+                            @class([
+                                'flex min-w-[72px] shrink-0 flex-col items-center rounded-2xl border px-3 py-2.5 transition',
+                                'border-primary-100 bg-primary-50 text-primary-300' => $selectedDate === $date['date'],
+                                'border-neutral-200 text-neutral-500 hover:border-primary-100' => $selectedDate !== $date['date'],
+                            ])
+                        >
+                            <span class="text-[11px] font-semibold uppercase tracking-wide">{{ $date['weekday'] }}</span>
+                            <span class="text-sm font-bold">{{ $date['label'] }}</span>
+                        </button>
+                    @endforeach
+                </div>
+
+                <div wire:loading.class="opacity-50" wire:target="selectDate,confirmSlot">
+                    @if (count($timeSlots) > 0)
+                        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                            @foreach ($timeSlots as $timeSlot)
+                                <button
+                                    type="button"
+                                    wire:key="booking-slot-{{ $timeSlot['start'] }}"
+                                    wire:click="confirmSlot('{{ $timeSlot['start'] }}')"
+                                    wire:loading.attr="disabled"
+                                    wire:target="confirmSlot"
+                                    class="rounded-full border border-neutral-200 px-3 py-2.5 text-sm font-semibold text-neutral-600 transition hover:border-primary-100 hover:bg-primary-50 hover:text-primary-300 disabled:opacity-50"
+                                >
+                                    {{ $timeSlot['label'] }}
+                                </button>
+                            @endforeach
+                        </div>
+                    @else
+                        <p class="rounded-lg bg-neutral-50 p-4 text-sm text-neutral-500">
+                            No times left on this day. Try another date.
+                        </p>
+                    @endif
+                </div>
+
+                <button type="button" @click="$dispatch('close-appointment')"
+                        class="justify-self-start text-sm font-medium text-neutral-400 underline hover:text-neutral-500">
+                    I'll arrange a time by phone instead
+                </button>
+            @endif
+        </div>
+    @elseif ($submitted)
+        <div class="grid gap-5 px-5 py-6 md:px-7">
+            @if ($promoValid && $promoCode)
+                <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
+                    Free-month voucher {{ $promoCode }} has been applied to this booking.
+                </div>
+            @endif
             <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-5">
                 <p class="font-display text-xl font-bold text-primary-300">
                     @if ($calendlyScheduled || $calendlyStatus === 'scheduled')
@@ -90,6 +209,33 @@
         </div>
     @else
         <form wire:submit.prevent="submit" class="px-5 py-6 md:px-7">
+            @if ($promoCode)
+                <div @class([
+                    'mb-5 flex items-start gap-3 rounded-2xl border p-4',
+                    'border-emerald-200 bg-emerald-50' => $promoValid,
+                    'border-amber-200 bg-amber-50' => ! $promoValid,
+                ])>
+                    <svg class="mt-0.5 h-5 w-5 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M3 9.5h14V18H3V9.5ZM1.8 6h16.4v3.5H1.8V6ZM10 6v12M10 6C7.6 1.8 4 3.2 5.2 6M10 6c2.4-4.2 6-2.8 4.8 0"
+                              stroke="{{ $promoValid ? '#047857' : '#92400e' }}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <div class="min-w-0">
+                        <p @class([
+                            'text-sm font-bold',
+                            'text-emerald-800' => $promoValid,
+                            'text-amber-900' => ! $promoValid,
+                        ])>
+                            {{ $promoValid ? 'Voucher ' . $promoCode . ' applied' : 'Voucher not recognised' }}
+                        </p>
+                        <p @class([
+                            'mt-0.5 text-sm',
+                            'text-emerald-900' => $promoValid,
+                            'text-amber-900' => ! $promoValid,
+                        ])>{{ $promoMessage }}</p>
+                    </div>
+                </div>
+            @endif
+
             <div class="hidden">
                 <label>
                     Leave this field empty
@@ -249,7 +395,7 @@
                 </div>
             </div>
 
-            @if (! $calendlyUrl)
+            @if (! $usesGoogle && ! $calendlyUrl)
                 <p class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
                     Calendly is not configured yet. Requests will still be saved.
                 </p>

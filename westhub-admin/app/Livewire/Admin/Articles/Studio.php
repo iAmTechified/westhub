@@ -8,6 +8,8 @@ use App\Models\ArticleRevision;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -51,6 +53,8 @@ class Studio extends Component
 
     public function mount(?Article $article = null): void
     {
+        Gate::authorize('articles.edit');
+
         if ($article?->exists) {
             $this->article = $article;
             $this->title = $article->title;
@@ -87,6 +91,8 @@ class Studio extends Component
 
     public function autosaveFromInteraction(?string $requestToken = null): void
     {
+        Gate::authorize('articles.edit');
+
         if (! $this->hasUnsavedChanges || ! $this->canAutosave()) {
             return;
         }
@@ -97,11 +103,15 @@ class Studio extends Component
 
     public function autosave(): void
     {
+        Gate::authorize('articles.edit');
+
         $this->autosaveFromInteraction();
     }
 
     public function saveDraft(?string $requestToken = null): void
     {
+        Gate::authorize('articles.edit');
+
         $targetStatus = $this->article?->status === Article::STATUS_PUBLISHED
             ? Article::STATUS_PUBLISHED
             : Article::STATUS_DRAFT;
@@ -111,18 +121,26 @@ class Studio extends Component
 
     public function publish(?string $requestToken = null): void
     {
+        Gate::authorize('articles.publish');
+
         $this->persist(Article::STATUS_PUBLISHED, true, true, false, 'publish', $requestToken);
     }
 
     public function restore(): void
     {
+        Gate::authorize('articles.delete');
+
         if (! $this->article) {
             return;
         }
 
+        // deleted_at is not fillable, so it must be cleared through SoftDeletes::restore().
+        if ($this->article->trashed()) {
+            $this->article->restore();
+        }
+
         $this->article->update([
             'status' => Article::STATUS_DRAFT,
-            'deleted_at' => null,
             'last_edited_at' => now(),
             'last_saved_at' => now(),
         ]);
@@ -134,6 +152,8 @@ class Studio extends Component
 
     public function createCategory(): void
     {
+        Gate::authorize('articles.edit');
+
         $this->validate([
             'newCategoryName' => ['required', 'string', 'max:255'],
             'newCategoryDescription' => ['nullable', 'string', 'max:500'],
@@ -155,6 +175,8 @@ class Studio extends Component
 
     public function removeHeadlineImageNow(): void
     {
+        Gate::authorize('articles.edit');
+
         $this->removeHeadlineImage = true;
         $this->headlineImageUpload = null;
         $this->saveState = 'Unsaved changes';
@@ -180,6 +202,12 @@ class Studio extends Component
         ?string $requestToken = null
     ): void
     {
+        // Every save path funnels through here; a publish-level status must never be
+        // written (e.g. via autosave or saveDraft) without publish rights.
+        if (in_array($targetStatus, [Article::STATUS_PUBLISHED, Article::STATUS_SCHEDULED], true)) {
+            Gate::authorize('articles.publish');
+        }
+
         $this->registerSaveRequest($requestToken);
 
         if (! $this->isCurrentSaveRequest($requestToken)) {
@@ -228,18 +256,18 @@ class Studio extends Component
                 $headlineImagePath = $article->headline_image_path;
                 $oldHeadlineImagePath = $article->headline_image_path;
                 $stagedHeadlineImagePath = null;
+                $appliedHeadlineImageRemoval = false;
 
                 if ($this->headlineImageUpload) {
                     $trustedExtension = $this->trustedImageExtension($this->headlineImageUpload);
                     $fileName = Str::uuid().'.'.$trustedExtension;
                     $stagedHeadlineImagePath = $this->headlineImageUpload->storeAs('articles/headlines', $fileName, 'public');
                     $headlineImagePath = $stagedHeadlineImagePath;
-                    $this->headlineImageUpload = null;
                 }
 
                 if ($this->removeHeadlineImage && $headlineImagePath) {
                     $headlineImagePath = null;
-                    $this->removeHeadlineImage = false;
+                    $appliedHeadlineImageRemoval = true;
                 }
 
                 if (! $this->isCurrentSaveRequest($requestToken)) {
@@ -267,27 +295,6 @@ class Studio extends Component
                     ]);
 
                     $article->save();
-                    $this->article = $article;
-                    Cache::put($this->draftMapKey(), $article->id, now()->addHours(6));
-
-                    $nextVersion = (int) ArticleRevision::query()->where('article_id', $article->id)->max('version') + 1;
-
-                    ArticleRevision::create([
-                        'article_id' => $article->id,
-                        'saved_by' => Auth::id(),
-                        'version' => $nextVersion,
-                        'payload_json' => [
-                            'title' => $article->title,
-                            'excerpt' => $article->excerpt,
-                            'body' => $article->body,
-                            'status' => $article->status,
-                            'article_category_id' => $article->article_category_id,
-                            'headline_image_alt' => $article->headline_image_alt,
-                            'headline_image_title' => $article->headline_image_title,
-                        ],
-                        'saved_at' => now(),
-                    ]);
-                    $didPersist = true;
                 } catch (\Throwable $exception) {
                     if ($stagedHeadlineImagePath) {
                         Storage::disk('public')->delete($stagedHeadlineImagePath);
@@ -296,9 +303,24 @@ class Studio extends Component
                     throw $exception;
                 }
 
+                $this->article = $article;
+                Cache::put($this->draftMapKey(), $article->id, now()->addHours(6));
+                $didPersist = true;
+
+                // Only drop the pending upload / removal flag once the article row is persisted.
+                if ($stagedHeadlineImagePath) {
+                    $this->headlineImageUpload = null;
+                }
+
+                if ($appliedHeadlineImageRemoval) {
+                    $this->removeHeadlineImage = false;
+                }
+
                 if ($oldHeadlineImagePath && $oldHeadlineImagePath !== $headlineImagePath) {
                     Storage::disk('public')->delete($oldHeadlineImagePath);
                 }
+
+                $this->recordRevision($article);
             });
         } catch (LockTimeoutException $exception) {
             report($exception);
@@ -333,6 +355,77 @@ class Studio extends Component
         if (! $this->embedded && $redirectAfter && request()->routeIs('admin.articles.create') && $this->article?->exists) {
             $this->redirectRoute('admin.articles.edit', ['article' => $this->article->id], navigate: true);
         }
+    }
+
+    protected function recordRevision(Article $article): void
+    {
+        $payload = [
+            'title' => $article->title,
+            'excerpt' => $article->excerpt,
+            'body' => $article->body,
+            'status' => $article->status,
+            'article_category_id' => $article->article_category_id,
+            'headline_image_alt' => $article->headline_image_alt,
+            'headline_image_title' => $article->headline_image_title,
+        ];
+
+        // Serialize revision numbering per article so concurrent editors of the same
+        // article cannot compute the same max(version) + 1.
+        Cache::lock($this->revisionLockKey($article), 10)->block(5, function () use ($article, $payload): void {
+            $latest = ArticleRevision::query()
+                ->where('article_id', $article->id)
+                ->orderByDesc('version')
+                ->first();
+
+            // Skip no-op revisions (e.g. repeated autosaves with identical content).
+            if ($latest && $this->normalizeRevisionPayload((array) $latest->payload_json) === $this->normalizeRevisionPayload($payload)) {
+                return;
+            }
+
+            $attempts = 0;
+
+            while (true) {
+                $nextVersion = (int) ArticleRevision::query()->where('article_id', $article->id)->max('version') + 1;
+
+                try {
+                    ArticleRevision::create([
+                        'article_id' => $article->id,
+                        'saved_by' => Auth::id(),
+                        'version' => $nextVersion,
+                        'payload_json' => $payload,
+                        'saved_at' => now(),
+                    ]);
+
+                    return;
+                } catch (UniqueConstraintViolationException $exception) {
+                    // Another writer took this version number; recompute and retry once.
+                    if (++$attempts > 1) {
+                        throw $exception;
+                    }
+                }
+            }
+        });
+    }
+
+    protected function normalizeRevisionPayload(array $payload): array
+    {
+        $normalized = [];
+
+        foreach (['title', 'excerpt', 'body', 'status', 'article_category_id', 'headline_image_alt', 'headline_image_title'] as $key) {
+            $value = $payload[$key] ?? null;
+            $normalized[$key] = $value === null ? null : (string) $value;
+        }
+
+        return $normalized;
+    }
+
+    protected function revisionLockKey(Article $article): string
+    {
+        if ($article->getKey()) {
+            return 'article-studio:revision-lock:article-'.$article->getKey();
+        }
+
+        return 'article-studio:revision-lock:'.Auth::id().':'.$this->draftNonce;
     }
 
     protected function registerSaveRequest(?string $requestToken): void
@@ -408,7 +501,16 @@ class Studio extends Component
             return null;
         }
 
-        return '/storage/'.ltrim($sourcePath, '/');
+        if (Str::startsWith($sourcePath, ['http://', 'https://', '//'])) {
+            return $sourcePath;
+        }
+
+        $relativePath = ltrim($sourcePath, '/');
+        if (Str::startsWith($relativePath, 'storage/')) {
+            $relativePath = substr($relativePath, strlen('storage/'));
+        }
+
+        return Storage::disk('public')->url($relativePath);
     }
 
     protected function trustedImageExtension(TemporaryUploadedFile $upload): string

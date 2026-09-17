@@ -136,6 +136,7 @@
             <div class="glass-card p-4 relative z-20 space-y-4">
                 <div class="flex items-center justify-between gap-3">
                     <h3 class="font-semibold">Counties</h3>
+                    @can('locations.manage')
                     <button
                         type="button"
                         wire:click="openCreateCountyModal"
@@ -146,6 +147,7 @@
                         <span wire:loading.remove wire:target="openCreateCountyModal">Add County</span>
                         <span wire:loading wire:target="openCreateCountyModal">Opening...</span>
                     </button>
+                    @endcan
                 </div>
 
                 <div class="space-y-2 max-h-[520px] overflow-auto pr-1">
@@ -159,6 +161,7 @@
                                 <p class="truncate">{{ $county->name }}</p>
                                 <p class="text-xs text-admin-muted">{{ $county->townships_count }} townships</p>
                             </button>
+                            @can('locations.manage')
                             <div class="flex items-center gap-1">
                                 <button
                                     type="button"
@@ -181,6 +184,7 @@
                                     <span wire:loading wire:target="promptDeleteCounty({{ $county->id }})">...</span>
                                 </button>
                             </div>
+                            @endcan
                         </div>
                     @empty
                         <div class="admin-empty-state p-5">
@@ -193,6 +197,7 @@
             <div class="glass-card p-4 space-y-3 relative z-30 overflow-visible">
                 <div class="flex items-center justify-between gap-3">
                     <h3 class="font-semibold">Townships</h3>
+                    @can('locations.manage')
                     <button
                         type="button"
                         x-on:click="$wire.openCreateTownshipModal(selectedCountyIdLocal)"
@@ -204,6 +209,7 @@
                         <span wire:loading.remove wire:target="openCreateTownshipModal">Add Township</span>
                         <span wire:loading wire:target="openCreateTownshipModal">Opening...</span>
                     </button>
+                    @endcan
                 </div>
 
                 <div x-show="isTownshipsLoading" class="space-y-3">
@@ -261,6 +267,7 @@
                                                 <span x-text="township.is_active ? 'Active' : 'Inactive'"></span>
                                             </p>
                                         </div>
+                                        @can('locations.manage')
                                         <div class="flex items-center gap-1">
                                             <button
                                                 type="button"
@@ -283,6 +290,7 @@
                                                 <span wire:loading wire:target="promptDeleteTownship">...</span>
                                             </button>
                                         </div>
+                                        @endcan
                                     </div>
                                 </template>
                             </div>

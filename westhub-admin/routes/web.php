@@ -9,9 +9,11 @@ use App\Livewire\Admin\Dashboard;
 use App\Livewire\Admin\Gallery\Index as GalleryIndex;
 use App\Livewire\Admin\JoinRequests\Index as JoinRequestsIndex;
 use App\Livewire\Admin\LocationsServices\Index as LocationsIndex;
+use App\Livewire\Admin\PromoClaims\Index as PromoClaimsIndex;
 use App\Livewire\Admin\Settings\Index as SettingsIndex;
 use App\Livewire\Admin\Subscribers\Index as SubscribersIndex;
-
+use App\Livewire\Admin\Users\Index as UsersIndex;
+use App\Livewire\Admin\Users\Studio as UsersStudio;
 use App\Models\County;
 use App\Models\Township;
 use Illuminate\Support\Facades\Route;
@@ -23,32 +25,32 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [LoginController::class, 'store'])->name('login.store');
 });
 
+/*
+| `admin.role` keeps anyone without an admin role out entirely. The per-route
+| `permission:` middleware then decides which modules a role can open.
+|
+| Route middleware only protects the first page load. Every Livewire button
+| click is a separate request that does not pass back through it, so each
+| component also re-checks with Gate::authorize in mount() and in its actions.
+*/
 Route::middleware(['auth', 'admin.role'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/dashboard', Dashboard::class)->name('dashboard');
+    Route::get('/dashboard', Dashboard::class)->name('dashboard')->middleware('permission:dashboard.view');
 
-    Route::middleware('permission:access_articles')->group(function () {
-        Route::get('/articles', ArticlesIndex::class)->name('articles.index');
-        Route::get('/articles/create', ArticlesStudio::class)->name('articles.create');
-        Route::get('/articles/{article}/edit', ArticlesStudio::class)->name('articles.edit');
-    });
+    Route::get('/articles', ArticlesIndex::class)->name('articles.index')->middleware('permission:articles.view');
+    Route::get('/articles/create', ArticlesStudio::class)->name('articles.create')->middleware('permission:articles.edit');
+    Route::get('/articles/{article}/edit', ArticlesStudio::class)->name('articles.edit')->middleware('permission:articles.edit');
 
-    Route::middleware('permission:access_applications')->group(function () {
-        Route::get('/join-requests', JoinRequestsIndex::class)->name('join-requests.index');
-    });
+    Route::get('/join-requests', JoinRequestsIndex::class)->name('join-requests.index')->middleware('permission:join_requests.view');
 
-    Route::middleware('permission:access_appointments')->group(function () {
-        Route::get('/appointments', AppointmentsIndex::class)->name('appointments.index');
-    });
+    Route::get('/appointments', AppointmentsIndex::class)->name('appointments.index')->middleware('permission:appointments.view');
 
-    Route::middleware('permission:access_gallery')->group(function () {
-        Route::get('/gallery', GalleryIndex::class)->name('gallery.index');
-    });
+    Route::get('/promo-claims', PromoClaimsIndex::class)->name('promo-claims.index')->middleware('permission:promos.view');
 
-    Route::middleware('permission:access_care_services')->group(function () {
-        Route::get('/care-services', CareServicesIndex::class)->name('care-services.index');
-    });
+    Route::get('/gallery', GalleryIndex::class)->name('gallery.index')->middleware('permission:gallery.view');
 
-    Route::middleware('permission:access_locations')->group(function () {
+    Route::get('/care-services', CareServicesIndex::class)->name('care-services.index')->middleware('permission:care_services.view');
+
+    Route::middleware('permission:locations.view')->group(function () {
         Route::get('/locations', LocationsIndex::class)->name('locations.index');
         Route::get('/locations/counties/{county}/townships', function (County $county) {
             $townships = Township::query()
@@ -62,18 +64,15 @@ Route::middleware(['auth', 'admin.role'])->prefix('admin')->name('admin.')->grou
         Route::redirect('/locations-services', '/admin/locations')->name('locations-services.redirect');
     });
 
-    Route::middleware('role:super_admin')->group(function () {
-        Route::get('/users', \App\Livewire\Admin\Users\Index::class)->name('users.index');
-        Route::get('/users/create', \App\Livewire\Admin\Users\Studio::class)->name('users.create');
-        Route::get('/users/{user}/edit', \App\Livewire\Admin\Users\Studio::class)->name('users.edit');
-    });
+    Route::get('/users', UsersIndex::class)->name('users.index')->middleware('permission:users.view');
+    Route::get('/users/create', UsersStudio::class)->name('users.create')->middleware('permission:users.manage');
+    Route::get('/users/{user}/edit', UsersStudio::class)->name('users.edit')->middleware('permission:users.manage');
 
+    Route::get('/subscribers', SubscribersIndex::class)->name('subscribers.index')->middleware('permission:subscribers.view');
+
+    // Deliberately open to every admin: it holds each person's own password
+    // change. The site-configuration groups inside are gated in the component.
     Route::get('/settings', SettingsIndex::class)->name('settings.index');
-
-    Route::middleware('permission:access_subscribers')->group(function () {
-        Route::get('/subscribers', SubscribersIndex::class)->name('subscribers.index');
-    });
 
     Route::post('/logout', [LoginController::class, 'destroy'])->name('logout');
 });
-

@@ -2,10 +2,18 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\AdminPermissions;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * Keeps anyone without an admin role out of the admin entirely.
+ *
+ * The users table is shared with the public site, so having an account is not
+ * enough; a role is what grants admin access. Which modules a role can open is
+ * decided separately by route `permission:` middleware and Gate checks.
+ */
 class EnsureAdminRole
 {
     public function handle(Request $request, Closure $next): Response
@@ -13,23 +21,18 @@ class EnsureAdminRole
         $user = $request->user();
 
         if (! $user) {
-            abort(403, 'You are not authorized to access this admin area.');
+            return redirect()->route('login');
         }
 
-        // Allow if user has an admin role OR any admin-level permission
-        $hasAdminRole = $user->hasAnyRole(['super_admin', 'editor', 'reviewer', 'ops']);
-        $hasAdminPermission = $user->hasAnyPermission([
-            'access_articles', 
-            'access_applications', 
-            'access_appointments', 
-            'access_gallery', 
-            'access_care_services', 
-            'access_locations', 
-            'access_settings'
-        ]);
+        if (! $user->hasAnyRole(AdminPermissions::roles())) {
+            // Don't strand a signed-in user on a bare 403 with no way out.
+            auth()->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
 
-        if (! $hasAdminRole && ! $hasAdminPermission) {
-            abort(403, 'You are not authorized to access this admin area.');
+            return redirect()->route('login')->withErrors([
+                'email' => 'That account does not have access to the WestHub admin. Ask a super admin to assign you a role.',
+            ]);
         }
 
         return $next($request);

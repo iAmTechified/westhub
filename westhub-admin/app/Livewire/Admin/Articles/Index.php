@@ -9,6 +9,7 @@ use App\Models\ArticleCategory;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -18,6 +19,9 @@ class Index extends Component
     use InteractsWithAdminToast;
 
     private const ALLOWED_STATUSES = ['draft', 'published', 'archived', 'trashed'];
+
+    /** Statuses that may be set via inline quick edit. 'trashed' requires a real soft delete. */
+    private const QUICK_UPDATE_STATUSES = ['draft', 'published', 'archived'];
 
     public bool $readyToLoad = true;
     public bool $loadError = false;
@@ -49,6 +53,8 @@ class Index extends Component
 
     public function mount(): void
     {
+        Gate::authorize('articles.view');
+
         $pref = AdminPreference::query()
             ->where('user_id', Auth::id())
             ->where('module', 'articles.index')
@@ -169,6 +175,7 @@ class Index extends Component
             $this->sortDirection = 'desc';
         }
 
+        $this->resetPage();
         $this->storePreference();
     }
 
@@ -178,7 +185,9 @@ class Index extends Component
             return;
         }
 
-        if ($field === 'status' && ! in_array($value, self::ALLOWED_STATUSES, true)) {
+        Gate::authorize($field === 'status' ? 'articles.publish' : 'articles.edit');
+
+        if ($field === 'status' && ! in_array($value, self::QUICK_UPDATE_STATUSES, true)) {
             return;
         }
 
@@ -208,12 +217,23 @@ class Index extends Component
                     }
                 }
 
-                Article::query()->whereKey($articleId)->update([
+                $attributes = [
                     $field => $value,
                     'last_edited_at' => now(),
                     'last_saved_at' => now(),
                     'updated_at' => now(),
-                ]);
+                ];
+
+                Article::query()->whereKey($articleId)->update($attributes);
+
+                // Publishing must stamp published_at (public scope requires it), but only
+                // when it has never been set; other transitions never clear it.
+                if ($field === 'status' && $value === Article::STATUS_PUBLISHED) {
+                    Article::query()
+                        ->whereKey($articleId)
+                        ->whereNull('published_at')
+                        ->update(['published_at' => now()]);
+                }
             });
         } catch (LockTimeoutException $exception) {
             report($exception);
@@ -249,6 +269,8 @@ class Index extends Component
 
     public function createCategory(): void
     {
+        Gate::authorize('articles.edit');
+
         $data = $this->validateCategory();
 
         ArticleCategory::create([
@@ -264,6 +286,8 @@ class Index extends Component
 
     public function updateCategory(): void
     {
+        Gate::authorize('articles.edit');
+
         if (! $this->editingCategoryId) {
             return;
         }
@@ -286,6 +310,8 @@ class Index extends Component
 
     public function deleteCategory(): void
     {
+        Gate::authorize('articles.edit');
+
         if (! $this->deletingCategoryId) {
             return;
         }
@@ -343,6 +369,8 @@ class Index extends Component
 
     public function deleteArticle(): void
     {
+        Gate::authorize('articles.delete');
+
         if (! $this->deletingArticleId) {
             return;
         }
@@ -363,6 +391,8 @@ class Index extends Component
 
     public function restoreArticle(int $articleId): void
     {
+        Gate::authorize('articles.delete');
+
         $article = Article::query()->onlyTrashed()->find($articleId);
         if (! $article) {
             return;
@@ -380,6 +410,8 @@ class Index extends Component
 
     public function forceDeleteArticle(int $articleId): void
     {
+        Gate::authorize('articles.delete');
+
         $article = Article::query()->onlyTrashed()->find($articleId);
         if (! $article) {
             return;
@@ -472,7 +504,7 @@ class Index extends Component
                 $sortBy = in_array($this->sortBy, $allowedSorts, true) ? $this->sortBy : 'updated_at';
                 $sortDirection = $this->sortDirection === 'asc' ? 'asc' : 'desc';
 
-                $articles = $query->orderBy($sortBy, $sortDirection)->paginate(12);
+                $articles = $query->orderBy($sortBy, $sortDirection)->orderByDesc('id')->paginate(12);
                 $categories = ArticleCategory::query()->where('is_active', true)->orderBy('name')->get();
                 $previewArticle = $this->previewArticleId ? Article::find($this->previewArticleId) : null;
                 $modalArticle = ($this->editingArticleId !== null) ? Article::query()->find($this->editingArticleId) : null;

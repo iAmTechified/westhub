@@ -73,7 +73,9 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
         <link href="https://fonts.googleapis.com/css2?family=Funnel+Display:wght@300..800&display=swap" rel="stylesheet">
-        <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+        @if(\App\Support\SiteSettings::appointmentProvider() === 'calendly')
+            <link href="https://assets.calendly.com/assets/external/widget.css" rel="stylesheet">
+        @endif
 
         <!-- Scripts & Styles -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -95,7 +97,9 @@
         </div>
 
         @livewireScripts
-        <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
+        @if(\App\Support\SiteSettings::appointmentProvider() === 'calendly')
+            <script src="https://assets.calendly.com/assets/external/widget.js" async></script>
+        @endif
         <div x-data="{ openAppointmentModal: false }" 
              @open-appointment.window="openAppointmentModal = true"
              @close-appointment.window="openAppointmentModal = false">
@@ -108,11 +112,12 @@
                  x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                  x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  class="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 pointer-events-none">
-                <div @click.away="openAppointmentModal = false" class="w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl pointer-events-auto">
+                <div @click.away="if (openAppointmentModal) { openAppointmentModal = false; $dispatch('close-appointment') }" class="w-full max-w-5xl max-h-[90vh] overflow-y-auto bg-white rounded-2xl shadow-2xl pointer-events-auto">
                      <livewire:book-appointment />
                 </div>
             </div>
         </div>
+        @livewire('promo-popup')
         @stack('scripts')
     </body>
 </html>
