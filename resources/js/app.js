@@ -1897,3 +1897,48 @@ window.westhubMenuPlacement = function (trigger, preferredHeight = 260) {
         maxHeight: Math.max(120, Math.min(preferredHeight, up ? above : below)),
     };
 };
+
+/**
+ * Keep a dialog fully visible without an inner scrollbar.
+ *
+ * The promo popup is taller than a short laptop window, and capping it with a
+ * scroll area meant the offer and the fine print were cut off. This measures
+ * the panel's natural height and scales it down just enough to fit, so all of
+ * it stays on screen and nothing has to be scrolled to.
+ *
+ * offsetHeight is layout height, which a transform does not change, so
+ * observing it cannot feed back into itself.
+ */
+window.westhubFitPanel = function (panel, options = {}) {
+    const { minScale = 0.6, margin = 24, minWidth = 640 } = options;
+
+    const apply = () => {
+        const natural = panel.offsetHeight;
+
+        // Below sm the dialog is a bottom sheet, where scrolling is expected.
+        if (window.innerWidth < minWidth || natural === 0) {
+            panel.style.transform = '';
+
+            return;
+        }
+
+        const available = window.innerHeight - (margin * 2);
+        const scale = natural > available ? Math.max(minScale, available / natural) : 1;
+
+        panel.style.transform = scale === 1 ? '' : `scale(${scale})`;
+
+        // Shrunk as far as it goes and still too tall, on a very short window:
+        // let it scroll rather than leave part of it out of reach. maxHeight is
+        // in unscaled units, so it renders as exactly the space available.
+        const clamped = natural * scale > available;
+
+        panel.style.overflowY = clamped ? 'auto' : '';
+        panel.style.maxHeight = clamped ? `${available / scale}px` : '';
+    };
+
+    apply();
+    new ResizeObserver(apply).observe(panel);
+    window.addEventListener('resize', apply);
+
+    return apply;
+};

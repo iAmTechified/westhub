@@ -18,6 +18,12 @@ deployment:
     # 3. Sync Admin Core Files (Renaming westhub-admin to admin on the server)
     - /bin/rsync -a --exclude='/public' ./westhub-admin/ $DEPLOYPATH/admin/
 
+    # 3b. rsync -a also copies the SOURCE directory's own mode onto the target,
+    #     and the cPanel git clone is private (700). That left /westhub
+    #     untraversable by the web server, so the admin subdomain served 404s
+    #     for every file until someone ran chmod by hand. Set them back.
+    - chmod 755 $DEPLOYPATH $DEPLOYPATH/admin
+
     # 4. Sync Main Public Files to public_html
     - /bin/rsync -a ./public/ $PUBLICPATH/
 

@@ -455,6 +455,7 @@ credentials, and the `super_admin` login.
 | No times offered in the booking form | Settings → Appointments → Test connection. Usually the calendar was not shared with the service account |
 | Admin-uploaded images 404 on the website | `PUBLIC_STORAGE_PATH` identical in both apps, and uploads copied into the shared folder |
 | Test connection says "Could not reach Google" | The server cannot make outgoing HTTPS calls, often a missing CA certificate bundle. With `APP_DEBUG=true` the admin shows the technical reason; in production it is in `storage/logs/laravel.log` ("Settings connection test failed") |
+| Admin subdomain returns a LiteSpeed 404 for every URL, even `/robots.txt` | `namei -l /home/westgpac/westhub/admin/public/robots.txt`. A `drwx------` on `westhub` stops the web server traversing it: `chmod 755 /home/westgpac/westhub`. `.cpanel.yml` now resets this on each deploy |
 | Every page errors after deploy | `npm run build` output not committed, or `config:cache` not re-run after a `.env` change |
 | Someone cannot open a module | `westhub:admin-user --list`, then their role |
 

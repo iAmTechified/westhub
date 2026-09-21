@@ -31,7 +31,7 @@ class JoinDecisionMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.join-decision',
+            view: 'emails.join-decision',
             with: [
                 'bodyText' => $this->bodyText,
                 'recipientName' => $this->recipientName,

@@ -37,7 +37,8 @@
                     aria-hidden="true"
                 ></div>
 
-                {{-- Modal --}}
+                {{-- Modal: the wrapper scales to fit short windows, so the panel itself never needs to scroll --}}
+                <div class="relative w-full max-w-[980px]" x-init="westhubFitPanel($el)">
                 <div
                     x-show="shown"
                     x-transition:enter="transition ease-out duration-300 delay-75"
@@ -46,7 +47,7 @@
                     x-transition:leave="transition ease-in duration-200"
                     x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
                     x-transition:leave-end="opacity-0 translate-y-8 sm:translate-y-4 sm:scale-95"
-                    class="relative w-full max-w-[980px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-t-[28px] sm:rounded-[14px] bg-white shadow-[0_24px_64px_-12px_rgba(28,63,120,0.45)] flex flex-col sm:flex-row"
+                    class="relative max-h-[92dvh] overflow-y-auto overflow-x-hidden rounded-t-[28px] sm:max-h-none sm:overflow-hidden sm:rounded-[14px] bg-white shadow-[0_24px_64px_-12px_rgba(28,63,120,0.45)] flex flex-col sm:flex-row"
                 >
                     {{-- Drag handle (mobile) --}}
                     <div class="absolute left-1/2 top-2.5 z-20 h-1.5 w-11 -translate-x-1/2 rounded-full bg-white/60 sm:hidden" aria-hidden="true"></div>
@@ -318,6 +319,7 @@
                             </div>
                         @endif
                     </div>
+                </div>
                 </div>
             </div>
 
