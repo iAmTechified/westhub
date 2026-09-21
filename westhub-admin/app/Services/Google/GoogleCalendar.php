@@ -329,7 +329,7 @@ class GoogleCalendar
             }
 
             if ($response->failed()) {
-                return ['ok' => false, 'message' => 'Google rejected the request: ' . $response->body()];
+                return ['ok' => false, 'message' => 'Google rejected the request (HTTP ' . $response->status() . ').', 'detail' => $response->body()];
             }
 
             $summary = (string) $response->json('summary', $this->calendarId());
@@ -337,7 +337,7 @@ class GoogleCalendar
 
             return ['ok' => true, 'message' => 'Connected to "' . $summary . '". Tomorrow has ' . $slots . ' open slot(s) under the current hours.'];
         } catch (Throwable $e) {
-            return ['ok' => false, 'message' => $e->getMessage()];
+            return ['ok' => false, 'message' => 'Could not connect to Google Calendar. Check the service account key, then try again.', 'detail' => $e->getMessage()];
         }
     }
 

@@ -1861,3 +1861,39 @@ window.westhubPromoGate = function (config) {
         },
     };
 };
+
+/**
+ * Where a dropdown menu should open so it stays reachable.
+ *
+ * Menus inside the booking modal live in a scrolling box, so a menu near the
+ * bottom used to run past the modal's visible edge. This measures the room
+ * above and below the trigger inside the nearest scrolling ancestor (or the
+ * window), opens upward when there is more room there, and caps the height to
+ * the space actually available.
+ */
+window.westhubMenuPlacement = function (trigger, preferredHeight = 260) {
+    const rect = trigger.getBoundingClientRect();
+    let top = 0;
+    let bottom = window.innerHeight;
+
+    for (let el = trigger.parentElement; el && el !== document.body; el = el.parentElement) {
+        const overflowY = getComputedStyle(el).overflowY;
+
+        if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+            const box = el.getBoundingClientRect();
+            top = Math.max(box.top, 0);
+            bottom = Math.min(box.bottom, window.innerHeight);
+            break;
+        }
+    }
+
+    const gap = 12;
+    const below = bottom - rect.bottom - gap;
+    const above = rect.top - top - gap;
+    const up = below < Math.min(preferredHeight, 180) && above > below;
+
+    return {
+        up,
+        maxHeight: Math.max(120, Math.min(preferredHeight, up ? above : below)),
+    };
+};

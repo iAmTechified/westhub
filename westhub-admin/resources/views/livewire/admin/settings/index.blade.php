@@ -64,6 +64,10 @@
                     <div class="admin-request-feedback {{ $testResult['ok'] ? 'is-success' : 'is-warning' }}">
                         <strong>{{ $testResult['ok'] ? 'Connected.' : 'Not connected.' }}</strong>
                         {{ $testResult['message'] }}
+                        {{-- Raw cURL/Google text is for developers only. --}}
+                        @if(config('app.debug') && filled($testResult['detail'] ?? null))
+                            <span class="mt-1 block font-mono text-[11px] opacity-80">Debug: {{ $testResult['detail'] }}</span>
+                        @endif
                     </div>
                 @endif
 
@@ -154,6 +158,15 @@
                                             @isset($meta['help'])
                                                 <p class="text-xs text-admin-muted mt-1">{{ $meta['help'] }}</p>
                                             @endisset
+                                            @isset($envFallbacks[$fieldKey])
+                                                <p class="text-xs text-primary-100 mt-1 [overflow-wrap:anywhere]">
+                                                    @if($envFallbacks[$fieldKey]['value'] === null)
+                                                        Using the value from <code>{{ $envFallbacks[$fieldKey]['var'] }}</code> in <code>.env</code> until one is saved here.
+                                                    @else
+                                                        Using <span class="font-mono">{{ $envFallbacks[$fieldKey]['value'] }}</span> from <code>{{ $envFallbacks[$fieldKey]['var'] }}</code> in <code>.env</code> until a value is saved here.
+                                                    @endif
+                                                </p>
+                                            @endisset
                                         @endif
 
                                         @error('settings.'.$fieldKey)
@@ -170,16 +183,16 @@
                     <div class="pt-2 flex flex-wrap items-center gap-3">
                         <button wire:click="updateGroup" wire:loading.attr="disabled" wire:target="updateGroup" class="admin-primary-btn min-w-32">
                             <span wire:loading.remove wire:target="updateGroup">Save Changes</span>
-                            <span wire:loading wire:target="updateGroup" class="flex items-center gap-2">
+                            <span wire:loading.flex wire:target="updateGroup" class="items-center gap-2">
                                 <x-admin.icon name="spinner" class="h-4 w-4 animate-spin" />
                                 Saving...
                             </span>
                         </button>
 
                         @if($testTarget)
-                            <button wire:click="testConnection" wire:loading.attr="disabled" wire:target="testConnection" class="admin-ghost-btn">
+                            <button wire:click="testConnection" wire:loading.attr="disabled" wire:target="testConnection" class="admin-ghost-btn whitespace-nowrap">
                                 <span wire:loading.remove wire:target="testConnection">Test connection</span>
-                                <span wire:loading wire:target="testConnection" class="flex items-center gap-2">
+                                <span wire:loading.flex wire:target="testConnection" class="items-center gap-2">
                                     <x-admin.icon name="spinner" class="h-4 w-4 animate-spin" />
                                     Testing...
                                 </span>

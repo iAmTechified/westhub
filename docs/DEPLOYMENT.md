@@ -49,8 +49,21 @@ Copy `.env.example` to `.env` in **both** apps.
 | `MAIL_*` | Both apps. See section 3 |
 | `QUEUE_CONNECTION` | `database`. Needs the queue cron in 5.4 |
 
-`APPOINTMENT_PROVIDER`, `CALENDLY_APPOINTMENT_URL`, `GOOGLE_CALENDAR_*` and `GOOGLE_SHEETS_*` are
-still read, but only as fallbacks. **Configure them in the admin instead.**
+**Integration fallbacks.** These are used until a value is saved in the admin, and the booking-page,
+Calendly and Sheets fields in the admin say "Using … from .env" while they run on one (secrets are never shown):
+
+| Variable | Admin field |
+| --- | --- |
+| `APPOINTMENT_PROVIDER` | Appointments → Booking provider (`calendly`, `google`, `google_booking_page`) |
+| `CALENDLY_APPOINTMENT_URL` | Appointments → Calendly link |
+| `GOOGLE_BOOKING_PAGE_URL` | Appointments → Booking page link |
+| `GOOGLE_CALENDAR_*` | Appointments → Google Calendar |
+| `GOOGLE_SHEETS_METHOD` | Integrations → Connection method (`service_account` or `apps_script`) |
+| `GOOGLE_SHEETS_APPS_SCRIPT_URL`, `GOOGLE_SHEETS_APPS_SCRIPT_SECRET` | Integrations → Apps Script URL and secret |
+| `GOOGLE_SHEETS_SPREADSHEET_ID`, `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_SHEET_NAME` | Integrations → service account fields |
+
+A value saved in the admin always wins over `.env`. Run `php artisan config:cache` after changing any of these on the
+server.
 
 ### 2.1 The shared encryption key
 
@@ -139,9 +152,38 @@ Each has a **Test connection** button that says exactly what is wrong.
 
 ### 4.1 Booking provider: Settings → Appointments
 
-Choose **Calendly** or **Google Calendar**. The switch is live on the website immediately.
+Three options, and switching is live on the website immediately. With every provider the visitor fills in
+WestHub's own form first, so their request is saved even if they never finish booking.
+
+| Provider | Where the visitor picks a time | What it needs | Does WestHub learn the booking happened? |
+| --- | --- | --- | --- |
+| **Calendly** | Calendly's popup, pre-filled | A Calendly link | Yes |
+| **Google booking page** | Google's own booking page, shown after the form | A Google Calendar appointment schedule | **No** |
+| **Google Calendar** | Inside the WestHub form, free times only | A Google Cloud service account | Yes |
 
 **Calendly.** Paste the scheduling URL. To move to another Calendly account, paste a different URL.
+
+**Google booking page.** Google Calendar's Appointment schedules feature. No Google Cloud project or key.
+
+1. In Google Calendar on a computer: **Create → Appointment schedule**. Set the title, length, available
+   hours, how far ahead people can book, and the questions on the booking form. Save.
+2. Open the schedule, click **Share**, and copy the **booking page link**. Either form works:
+   `https://calendar.google.com/calendar/appointments/schedules/…` or the short `https://calendar.app.google/…`.
+3. Settings → Appointments: provider **Google booking page**, paste the link, save, then **Test connection**.
+
+What to expect:
+
+- Hours, appointment length, reminders and the booking questions are managed **in Google Calendar**, not in
+  the WestHub admin.
+- **Google does not tell WestHub when someone books.** The request stays **New** in Admin → Appointments,
+  labelled *Google booking page*, while the booking itself appears on your Google Calendar. Match the two by
+  the client's email: the form asks visitors to book with the same address.
+- **Promo vouchers are saved on the request but not redeemed automatically**, because WestHub cannot tell
+  whether the visitor finished booking. Mark them redeemed in Admin → Promo Claims.
+- A personal Google account gets the basic booking page. Some extras, such as checking several calendars
+  for conflicts or email reminders, need a paid Google Workspace or Google One plan. If an option is greyed
+  out in Google Calendar, that is why.
+- Do not paste Google's "Website embed" code into the site. The booking form already shows the page.
 
 **Google Calendar** offers real open time slots inside the booking form, invites the client as an
 attendee, and can attach a Google Meet link.
@@ -157,19 +199,70 @@ attendee, and can attach a Google Meet link.
 
 ### 4.2 Google Sheets: Settings → Integrations
 
+Job applications and promo claims are always saved to the database first. The queue (5.4) then copies
+them to the spreadsheet. Choose how WestHub connects:
+
+| Method | What it needs | Choose it when |
+| --- | --- | --- |
+| **Apps Script web app** | A script pasted into the spreadsheet | You want no Google Cloud project or key |
+| **Service account** | A Google Cloud project, the Sheets API and a JSON key | Sheets is already set up this way, or your Google Workspace blocks Apps Script web apps |
+
+The spreadsheet behaves identically with either method.
+
+**Apps Script web app.** The script is in this repository at `docs/google-apps-script/westhub-sheets.gs`.
+
+1. Open the spreadsheet, or create it, with the Google account that should own the data.
+2. **Extensions → Apps Script.** Delete everything in the editor, paste the whole of `westhub-sheets.gs`,
+   and save.
+3. Generate a secret on the server and keep it for the next two steps:
+   ```
+   php artisan tinker --execute="echo Str::random(48), PHP_EOL;"
+   ```
+4. In the script editor: **Project Settings** (gear icon) → **Script properties** → **Add script property**.
+   Property `WESTHUB_SECRET`, value the secret. Save.
+5. **Deploy → New deployment**, gear icon → **Web app**:
+   - Execute as: **Me**
+   - Who has access: **Anyone**
+
+   Click Deploy and approve the permissions. Google warns that the app is unverified, because you wrote it:
+   choose **Advanced → Go to (project name)**. Copy the **Web app URL**. It ends in `/exec`.
+6. Settings → Integrations: connection method **Apps Script web app**, paste the URL and the secret, switch
+   on **Sync submissions to Google Sheets**, save, then **Test connection**. It should name your spreadsheet
+   and list its tabs.
+
+Things to know about Apps Script:
+
+- **"Anyone" is required**, because the WestHub server calls the script without signing in to Google. The
+  script refuses any request without the secret, and only the server ever uses the URL; visitors never see
+  it. Treat the URL and the secret like a password.
+- **Editing the script later:** Deploy → Manage deployments → edit (pencil) → Version: **New version**.
+  Saving in the editor alone does not change the live web app, and a *new deployment* gets a new URL.
+- The secret is never shown again after saving. To change it, update the script property and the admin
+  field together.
+- Some Google Workspace organisations stop users deploying web apps with "Anyone" access. If that option
+  is missing, use the service account method or ask your Workspace administrator.
+
+**Service account.**
+
 1. Enable the **Google Sheets API** on a service account (the Calendar one can be reused).
 2. Copy the spreadsheet ID from its URL, the part between `/d/` and `/edit`.
-3. Paste the ID, service account email and key in Settings.
+3. Choose connection method **Service account**, and paste the ID, service account email and key in Settings.
 4. **Share the spreadsheet with the service account address as an Editor.**
 5. Save, then **Test connection**.
 
-Two tabs are used, **Join Requests** and **Promo Claims**, both renameable and created automatically if
-missing. Columns are matched **by name**, so staff can reorder them or add their own columns without
-breaking the sync. `owner` and `notes` are never overwritten. Values are written as plain text, so an
-applicant's name beginning with `=` cannot run as a formula.
-
 **If Sheets was already configured through `.env`:** it keeps syncing exactly as before. The
 **"Sync submissions to Google Sheets"** toggle only takes over once someone saves it in the admin.
+
+**When rows are written.** A claim or application is saved to the database, then written to the spreadsheet
+during the same request, so rows appear without waiting for a cron. If Google is slow (over 5 seconds) or
+unreachable, the write is handed to the queue, which retries it with backoff; that retry checks whether the
+row arrived before writing, so a lost reply cannot produce a duplicate. A write skipped because Sheets is
+off or unconfigured is logged as "not synced".
+
+**Either method:** two tabs are used, **Join Requests** and **Promo Claims**, both renameable and created
+automatically if missing. Columns are matched **by name**, so staff can reorder them or add their own
+columns without breaking the sync. `owner` and `notes` are never overwritten. Values are written as plain
+text, so an applicant's name beginning with `=` cannot run as a formula.
 
 ### 4.3 The promo campaign: Settings → Promotions
 
@@ -257,7 +350,7 @@ php artisan config:cache
 | --- | --- |
 | Public `schedule:run` | Expired promo vouchers keep showing as active |
 | Admin `schedule:run` | SEO metrics stop updating |
-| Both `queue:work` | Application emails never send and nothing reaches Google Sheets |
+| Both `queue:work` | Application emails never send, and a sheet write that failed first time is never retried |
 
 Shared hosting cannot keep a worker running permanently, so the queue runs as a one-minute cron that
 exits when the queue is empty.
@@ -277,6 +370,7 @@ exits when the queue is empty.
 - [ ] Mail tested with a real send
 - [ ] An image uploaded in the admin loads on the public website
 - [ ] Booking provider chosen and **Test connection** passing
+- [ ] Sheets connection method chosen and **Test connection** passing
 - [ ] Promo dates and wording reviewed before the popup goes live
 
 ### 5.6 Remove the old setup script from the server
@@ -353,9 +447,14 @@ credentials, and the `super_admin` login.
 | Popup appears once, then never again | Expected. A dismissal is remembered for 7 days. Test in a private window |
 | Vouchers not arriving | Mail settings, then spam folder, then SPF/DKIM |
 | Application emails not arriving | The `queue:work` cron jobs |
-| Nothing reaching the spreadsheet | Settings → Integrations → Test connection, then the queue cron |
+| Nothing reaching the spreadsheet | Settings → Integrations → Test connection, then search the log for "not synced" (says Sheets is off or unconfigured) and for "deferred to the queue" (says Google could not be reached) |
+| Sheets test says the web app "did not answer with JSON" | Redeploy with Who has access: **Anyone**, and use the URL ending in `/exec`, not `/dev` (4.2) |
+| Sheets test says "Secret rejected" | The `WESTHUB_SECRET` script property and the admin secret differ |
+| Apps Script edits have no effect | Publish them: Manage deployments → edit → Version: New version (4.2) |
+| Google booking page requests stay New | Expected. Google does not report bookings back. Match them to the calendar by email (4.1) |
 | No times offered in the booking form | Settings → Appointments → Test connection. Usually the calendar was not shared with the service account |
 | Admin-uploaded images 404 on the website | `PUBLIC_STORAGE_PATH` identical in both apps, and uploads copied into the shared folder |
+| Test connection says "Could not reach Google" | The server cannot make outgoing HTTPS calls, often a missing CA certificate bundle. With `APP_DEBUG=true` the admin shows the technical reason; in production it is in `storage/logs/laravel.log` ("Settings connection test failed") |
 | Every page errors after deploy | `npm run build` output not committed, or `config:cache` not re-run after a `.env` change |
 | Someone cannot open a module | `westhub:admin-user --list`, then their role |
 

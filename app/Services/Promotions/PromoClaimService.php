@@ -172,8 +172,18 @@ class PromoClaimService
         }
     }
 
+    /**
+     * Write the row now, so the spreadsheet is current even where no queue
+     * worker is running. A slow or failing Google hands over to the queue,
+     * which retries with backoff; the claim itself is already saved either
+     * way, and the queued copy checks for the row before appending.
+     */
     public function syncToSheet(PromoClaim $claim): void
     {
+        if ($this->trySyncNow($claim->id, statusOnly: false)) {
+            return;
+        }
+
         try {
             AppendPromoClaimToGoogleSheet::dispatch($claim->id);
         } catch (Throwable $e) {
@@ -181,8 +191,30 @@ class PromoClaimService
         }
     }
 
+    /** True when the immediate attempt succeeded. */
+    protected function trySyncNow(int $claimId, bool $statusOnly): bool
+    {
+        try {
+            AppendPromoClaimToGoogleSheet::dispatchSync($claimId, $statusOnly, true);
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Promo claim sheet sync deferred to the queue.', [
+                'promo_claim_id' => $claimId,
+                'status_only' => $statusOnly,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
     public function updateSheetStatus(PromoClaim $claim): void
     {
+        if ($this->trySyncNow($claim->id, statusOnly: true)) {
+            return;
+        }
+
         try {
             AppendPromoClaimToGoogleSheet::dispatch($claim->id, true);
         } catch (Throwable $e) {

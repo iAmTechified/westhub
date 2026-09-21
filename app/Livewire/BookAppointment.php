@@ -37,7 +37,13 @@ class BookAppointment extends Component
     public ?int $appointmentId = null;
     public ?string $calendlyUrl = null;
 
-    /** "calendly" or "google", chosen in the admin and read live from settings. */
+    /** Google appointment schedule, framed after the form when that provider is active. */
+    public ?string $bookingPageUrl = null;
+
+    /** Set when the visitor says they finished booking on Google's page. */
+    public bool $bookingPageDone = false;
+
+    /** "calendly", "google" or "google_booking_page", chosen in the admin and read live from settings. */
     public string $provider = AppointmentProviderManager::CALENDLY;
 
     /* ---- Google Calendar scheduling state ---- */
@@ -60,6 +66,7 @@ class BookAppointment extends Component
     {
         $this->provider = SiteSettings::appointmentProvider();
         $this->calendlyUrl = SiteSettings::calendlyAppointmentUrl();
+        $this->bookingPageUrl = SiteSettings::googleBookingPageEmbedUrl();
     }
 
     /**
@@ -89,6 +96,7 @@ class BookAppointment extends Component
             'meetUrl',
             'calendarLink',
             'scheduleError',
+            'bookingPageDone',
             'promoCode',
             'promoMessage',
             'promoValid',
@@ -96,6 +104,7 @@ class BookAppointment extends Component
 
         $this->provider = SiteSettings::appointmentProvider();
         $this->calendlyUrl = SiteSettings::calendlyAppointmentUrl();
+        $this->bookingPageUrl = SiteSettings::googleBookingPageEmbedUrl();
 
         if (filled($prefillName)) {
             $this->fullName = (string) $prefillName;
@@ -218,6 +227,13 @@ class BookAppointment extends Component
             return;
         }
 
+        if ($this->provider === AppointmentProviderManager::GOOGLE_BOOKING_PAGE) {
+            // The view frames Google's booking page next. Google sends nothing
+            // back to this site, so the request stays "new" and staff match it
+            // to the calendar entry, and redeem any voucher, by hand.
+            return;
+        }
+
         $this->calendlyUrl = SiteSettings::calendlyAppointmentUrlFor($appointment);
         $this->calendlyStatus = $this->calendlyUrl ? 'opening' : 'unconfigured';
 
@@ -305,6 +321,34 @@ class BookAppointment extends Component
 
         $this->recordEvent($appointment->fresh(), 'google_scheduled', Appointment::STATUS_NEW, $appointment->status);
         $this->redeemPromo($appointment, $promos);
+    }
+
+    /**
+     * Google's booking page never tells this site that a booking happened, so
+     * the visitor tells us. It is self-reported, and recorded as such: staff
+     * still match the request to the calendar entry.
+     */
+    public function markBookingPageBooked(): void
+    {
+        $this->bookingPageDone = true;
+
+        if ($this->provider !== AppointmentProviderManager::GOOGLE_BOOKING_PAGE || ! $this->appointmentId) {
+            return;
+        }
+
+        $appointment = Appointment::query()->find($this->appointmentId);
+
+        if (! $appointment) {
+            return;
+        }
+
+        $appointment->update([
+            'meta' => array_merge((array) ($appointment->meta ?? []), [
+                'booking_page_confirmed_at' => now()->toIso8601String(),
+            ]),
+        ]);
+
+        $this->recordEvent($appointment->fresh(), 'booking_page_confirmed', $appointment->status, $appointment->status);
     }
 
     public function chooseAnotherTime(): void
@@ -423,6 +467,7 @@ class BookAppointment extends Component
             'provider' => $this->provider,
             'calendly_url' => $this->provider === AppointmentProviderManager::CALENDLY ? SiteSettings::calendlyAppointmentUrl() : null,
             'calendly_integration' => $this->provider === AppointmentProviderManager::CALENDLY ? 'javascript_embed' : null,
+            'google_booking_page_url' => $this->provider === AppointmentProviderManager::GOOGLE_BOOKING_PAGE ? SiteSettings::googleBookingPageUrl() : null,
             'promo_code' => $this->promoValid ? $this->promoCode : null,
             'submitted_from' => request()->fullUrl(),
             'timezone' => SiteSettings::appointmentTimezone(),
@@ -711,6 +756,7 @@ class BookAppointment extends Component
             'services' => $this->options(Service::class),
             'townships' => $this->townshipOptions(),
             'usesGoogle' => $this->provider === AppointmentProviderManager::GOOGLE,
+            'usesBookingPage' => $this->provider === AppointmentProviderManager::GOOGLE_BOOKING_PAGE,
             'bookingTimezone' => SiteSettings::appointmentTimezone(),
         ]);
     }

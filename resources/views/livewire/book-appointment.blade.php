@@ -137,6 +137,103 @@
                 </button>
             @endif
         </div>
+    @elseif ($submitted && $usesBookingPage)
+        {{-- ============ Google appointment schedule: Google's own booking page ============ --}}
+        <div class="grid gap-5 px-5 py-6 md:px-7">
+            @if ($promoValid && $promoCode)
+                <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
+                    Free-month voucher {{ $promoCode }} is saved with your request. Our team applies it when they confirm your appointment.
+                </div>
+            @endif
+
+            @if ($bookingPageDone)
+                {{-- Final state: the frame is gone, so nobody is left staring at Google's page. --}}
+                <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+                    <p class="font-display text-xl font-bold text-emerald-900">That's everything, thank you.</p>
+                    <p class="mt-2 text-sm leading-6 text-emerald-900/80">
+                        Google has emailed your appointment to <span class="font-semibold break-all">{{ $email }}</span>, with a link to change or cancel it.
+                        Our care coordinator will be in touch before your appointment.
+                        @if ($promoValid && $promoCode)
+                            Your free-month voucher {{ $promoCode }} is saved with this booking.
+                        @endif
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    @click="$dispatch('close-appointment')"
+                    class="justify-self-start inline-flex items-center justify-center rounded-full bg-primary-100 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-primary-100/25 transition hover:bg-primary-300"
+                >
+                    Close
+                </button>
+            @elseif ($bookingPageUrl)
+                <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-5">
+                    <p class="font-display text-xl font-bold text-primary-300">Request saved. Now choose a time.</p>
+                    <p class="mt-2 text-sm leading-6 text-neutral-600">
+                        Pick a slot below. Please book with the same email, <span class="font-semibold break-all">{{ $email }}</span>, so we can match the booking to your request.
+                    </p>
+                </div>
+
+                {{-- Google's page can take a few seconds, so say so rather than
+                     leaving an empty white box that looks stuck. --}}
+                <div
+                    x-data="{ loaded: false, slow: false }"
+                    x-init="setTimeout(() => { if (! loaded) slow = true }, 12000)"
+                    class="relative h-[640px] w-full overflow-hidden rounded-lg border border-neutral-200"
+                >
+                    <div x-show="! loaded" class="absolute inset-0 grid place-items-center gap-3 bg-neutral-50 p-6 text-center">
+                        <svg class="h-7 w-7 animate-spin text-primary-100" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        <p class="text-sm font-semibold text-neutral-500">Loading available times from Google...</p>
+                        <p x-show="slow" x-cloak class="text-xs text-neutral-400">
+                            Still loading. You can open the booking page in a new tab instead.
+                        </p>
+                    </div>
+
+                    <iframe
+                        src="{{ $bookingPageUrl }}"
+                        title="Choose an appointment time"
+                        class="h-full w-full"
+                        x-on:load="loaded = true"
+                    ></iframe>
+                </div>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <button
+                        type="button"
+                        wire:click="markBookingPageBooked"
+                        class="inline-flex items-center justify-center gap-2 rounded-full bg-primary-100 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-primary-100/25 transition hover:bg-primary-300"
+                    >
+                        <x-icon-calendar class="h-5 w-5" />
+                        I've booked my time
+                    </button>
+                    <a
+                        href="{{ $bookingPageUrl }}"
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex items-center justify-center rounded-full border border-neutral-200 px-5 py-3 text-sm font-bold text-neutral-500 transition hover:border-primary-100 hover:text-primary-300"
+                    >
+                        Open in a new tab
+                    </a>
+                </div>
+            @else
+                <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-5">
+                    <p class="font-display text-xl font-bold text-primary-300">Request saved</p>
+                    <p class="mt-2 text-sm leading-6 text-neutral-600">
+                        Your details are in our appointment queue. A care coordinator will call you to arrange a time.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    @click="$dispatch('close-appointment')"
+                    class="inline-flex items-center justify-center rounded-full border border-neutral-200 px-5 py-3 text-sm font-bold text-neutral-500 transition hover:border-primary-100 hover:text-primary-300"
+                >
+                    Close
+                </button>
+            @endif
+        </div>
     @elseif ($submitted)
         <div class="grid gap-5 px-5 py-6 md:px-7">
             @if ($promoValid && $promoCode)
@@ -282,17 +379,17 @@
 
                 <div class="join-field">
                     <label class="mb-1 block text-sm font-bold text-neutral-500">Service</label>
-                    <div x-data="{ open: false }" @click.away="open = false" class="join-custom-select" :class="{ 'is-open': open }">
+                    <div x-data="{ open: false, up: false, maxH: 260 }" @click.away="open = false" class="join-custom-select" :class="{ 'is-open': open }">
                         <button
                             type="button"
-                            @click="open = !open"
+                            @click="if (! open) { let p = westhubMenuPlacement($el); up = p.up; maxH = p.maxHeight } open = ! open"
                             class="join-select-button !h-[46px] !rounded-lg !px-4 !text-sm"
                             :class="{ 'border-primary-100 shadow-[0_0_0_3px_rgba(20,171,213,0.14)]': open }"
                         >
                             <span class="join-select-label">{{ $selectedService?->name ?? 'General consultation' }}</span>
                             <x-icon-chevron-down class="h-3 w-3 shrink-0 text-neutral-400 transition-transform" ::class="open ? 'rotate-180' : ''" />
                         </button>
-                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full">
+                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full" :style="up ? `top: auto; bottom: calc(100% + 5px); max-height: ${maxH}px` : `max-height: ${maxH}px`">
                             <button type="button" @click="open = false" wire:click="$set('serviceId', '')" class="join-select-option {{ $serviceValue === '' ? 'is-selected' : '' }}">
                                 General consultation
                             </button>
@@ -314,17 +411,17 @@
 
                 <div class="join-field">
                     <label class="mb-1 block text-sm font-bold text-neutral-500">County</label>
-                    <div x-data="{ open: false }" @click.away="open = false" class="join-custom-select" :class="{ 'is-open': open }">
+                    <div x-data="{ open: false, up: false, maxH: 260 }" @click.away="open = false" class="join-custom-select" :class="{ 'is-open': open }">
                         <button
                             type="button"
-                            @click="open = !open"
+                            @click="if (! open) { let p = westhubMenuPlacement($el); up = p.up; maxH = p.maxHeight } open = ! open"
                             class="join-select-button !h-[46px] !rounded-lg !px-4 !text-sm"
                             :class="{ 'border-primary-100 shadow-[0_0_0_3px_rgba(20,171,213,0.14)]': open }"
                         >
                             <span class="join-select-label">{{ $selectedCounty?->name ?? 'Select County' }}</span>
                             <x-icon-chevron-down class="h-3 w-3 shrink-0 text-neutral-400 transition-transform" ::class="open ? 'rotate-180' : ''" />
                         </button>
-                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full">
+                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full" :style="up ? `top: auto; bottom: calc(100% + 5px); max-height: ${maxH}px` : `max-height: ${maxH}px`">
                             <button type="button" @click="open = false" wire:click="selectCounty('')" class="join-select-option {{ $countyValue === '' ? 'is-selected' : '' }}">
                                 Select County
                             </button>
@@ -347,7 +444,7 @@
                 <div class="join-field">
                     <label class="mb-1 block text-sm font-bold text-neutral-500">City/Town</label>
                     <div
-                        x-data="{ open: false, label: @js($selectedTownship?->name ?? 'Select City/Town') }"
+                        x-data="{ open: false, up: false, maxH: 260, label: @js($selectedTownship?->name ?? 'Select City/Town') }"
                         @click.away="open = false"
                         x-on:livewire:navigated.window="label = @js($selectedTownship?->name ?? 'Select City/Town')"
                         class="join-custom-select"
@@ -355,7 +452,7 @@
                     >
                         <button
                             type="button"
-                            @click="open = !open"
+                            @click="if (! open) { let p = westhubMenuPlacement($el); up = p.up; maxH = p.maxHeight } open = ! open"
                             class="join-select-button !h-[46px] !rounded-lg !px-4 !text-sm"
                             :class="{ 'border-primary-100 shadow-[0_0_0_3px_rgba(20,171,213,0.14)]': open }"
                             wire:loading.attr="disabled"
@@ -371,7 +468,7 @@
                             </span>
                             <x-icon-chevron-down class="h-3 w-3 shrink-0 text-neutral-400 transition-transform" ::class="open ? 'rotate-180' : ''" />
                         </button>
-                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full">
+                        <div x-show="open" x-cloak class="join-select-menu appointment-select-menu !z-[1200] !w-full" :style="up ? `top: auto; bottom: calc(100% + 5px); max-height: ${maxH}px` : `max-height: ${maxH}px`">
                             <button
                                 type="button"
                                 @click="open = false; label = 'Select City/Town'; $wire.set('townshipId', '')"
@@ -395,7 +492,7 @@
                 </div>
             </div>
 
-            @if (! $usesGoogle && ! $calendlyUrl)
+            @if ($provider === 'calendly' && ! $calendlyUrl)
                 <p class="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
                     Calendly is not configured yet. Requests will still be saved.
                 </p>

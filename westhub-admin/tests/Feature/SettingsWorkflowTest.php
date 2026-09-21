@@ -8,6 +8,8 @@ use App\Models\SettingAudit;
 use App\Support\AdminPermissions;
 use App\Support\SettingsCrypto;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -198,5 +200,154 @@ class SettingsWorkflowTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertTrue(\Illuminate\Support\Facades\Hash::check('a-New-Passw0rd!', $user->fresh()->password));
+    }
+    public function test_the_sheets_method_switches_between_service_account_and_apps_script_fields(): void
+    {
+        $this->actingAsAdmin();
+
+        $component = Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'integrations');
+
+        // Unset means service account, so existing setups keep their fields.
+        $fields = $component->instance()->visibleFields();
+        $this->assertArrayHasKey('google_sheets_private_key', $fields);
+        $this->assertArrayNotHasKey('google_sheets_apps_script_url', $fields);
+
+        $component->set('settings.google_sheets_method', 'apps_script');
+
+        $fields = $component->instance()->visibleFields();
+        $this->assertArrayHasKey('google_sheets_apps_script_url', $fields);
+        $this->assertArrayHasKey('google_sheets_apps_script_secret', $fields);
+        $this->assertArrayNotHasKey('google_sheets_private_key', $fields);
+        $this->assertArrayNotHasKey('google_sheets_spreadsheet_id', $fields);
+        // Tab names apply to both methods.
+        $this->assertArrayHasKey('google_sheets_join_requests_tab', $fields);
+    }
+
+    public function test_an_apps_script_setup_saves_with_the_secret_encrypted(): void
+    {
+        $this->actingAsAdmin();
+
+        $component = Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'integrations')
+            ->set('settings.google_sheets_method', 'apps_script')
+            ->set('settings.google_sheets_apps_script_url', 'https://docs.google.com/spreadsheets/d/abc/edit')
+            ->set('settings.google_sheets_apps_script_secret', 'shared-secret-123')
+            ->call('updateGroup')
+            ->assertHasErrors(['settings.google_sheets_apps_script_url' => 'regex']);
+
+        $this->assertDatabaseMissing('settings', ['key' => 'google_sheets_apps_script_secret']);
+
+        $component
+            ->set('settings.google_sheets_apps_script_url', 'https://script.google.com/macros/s/AKfycbx_TEST-1/exec')
+            ->call('updateGroup')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('settings', ['group' => 'integrations', 'key' => 'google_sheets_method', 'value' => 'apps_script']);
+
+        $secret = Setting::query()->where('group', 'integrations')->where('key', 'google_sheets_apps_script_secret')->firstOrFail();
+        $this->assertTrue((bool) $secret->is_encrypted);
+        $this->assertSame('shared-secret-123', SettingsCrypto::decrypt($secret->value));
+
+        $component->assertSet('settings.google_sheets_apps_script_secret', '');
+    }
+
+    public function test_the_google_booking_page_provider_takes_only_a_google_link(): void
+    {
+        $this->actingAsAdmin();
+
+        $component = Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'appointments')
+            ->set('settings.provider', 'google_booking_page');
+
+        $fields = $component->instance()->visibleFields();
+        $this->assertArrayHasKey('google_booking_page_url', $fields);
+        $this->assertArrayNotHasKey('google_service_account_private_key', $fields);
+        $this->assertArrayNotHasKey('calendly_url', $fields);
+
+        $component
+            ->set('settings.google_booking_page_url', 'https://calendly.com/westhub/appointment')
+            ->call('updateGroup')
+            ->assertHasErrors(['settings.google_booking_page_url' => 'regex']);
+
+        $component
+            ->set('settings.google_booking_page_url', 'https://calendar.app.google/uXbq7kEYq2')
+            ->call('updateGroup')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('settings', ['group' => 'appointments', 'key' => 'provider', 'value' => 'google_booking_page']);
+        $this->assertDatabaseHas('settings', ['group' => 'appointments', 'key' => 'google_booking_page_url', 'value' => 'https://calendar.app.google/uXbq7kEYq2']);
+    }
+    public function test_an_unsaved_sheets_setup_shows_what_env_provides(): void
+    {
+        $this->actingAsAdmin();
+
+        config()->set('services.google_sheets.method', 'apps_script');
+        config()->set('services.google_sheets.apps_script_url', 'https://script.google.com/macros/s/AKfycbx_FROM-ENV/exec');
+        config()->set('services.google_sheets.apps_script_secret', 'env-secret-never-shown');
+
+        $component = Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'integrations')
+            // The select shows the method actually in use, so the right fields appear.
+            ->assertSet('settings.google_sheets_method', 'apps_script')
+            // Syncing is on when configured and never saved; the box must say so.
+            ->assertSet('settings.google_sheets_enabled', true)
+            // Text fields stay empty so saving does not copy .env into the database.
+            ->assertSet('settings.google_sheets_apps_script_url', '')
+            ->assertSee('https://script.google.com/macros/s/AKfycbx_FROM-ENV/exec')
+            ->assertSee('GOOGLE_SHEETS_APPS_SCRIPT_SECRET')
+            ->assertDontSee('env-secret-never-shown');
+
+        $this->assertArrayHasKey('google_sheets_apps_script_url', $component->instance()->visibleFields());
+    }
+
+    public function test_a_saved_value_replaces_the_env_note(): void
+    {
+        $this->actingAsAdmin();
+
+        config()->set('services.google_booking_page.url', 'https://calendar.app.google/FromEnv');
+
+        Setting::create(['group' => 'appointments', 'key' => 'provider', 'value' => 'google_booking_page', 'is_encrypted' => false]);
+        Setting::create(['group' => 'appointments', 'key' => 'google_booking_page_url', 'value' => 'https://calendar.app.google/Saved', 'is_encrypted' => false]);
+
+        Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'appointments')
+            ->assertSet('settings.google_booking_page_url', 'https://calendar.app.google/Saved')
+            ->assertDontSee('https://calendar.app.google/FromEnv');
+    }
+
+    public function test_connection_errors_show_technical_detail_only_in_debug_mode(): void
+    {
+        $this->actingAsAdmin();
+
+        Setting::create(['group' => 'integrations', 'key' => 'google_sheets_method', 'value' => 'apps_script', 'is_encrypted' => false]);
+        Setting::create(['group' => 'integrations', 'key' => 'google_sheets_apps_script_url', 'value' => 'https://script.google.com/macros/s/AKfycbx_T/exec', 'is_encrypted' => false]);
+        Setting::create(['group' => 'integrations', 'key' => 'google_sheets_apps_script_secret', 'value' => 'secret', 'is_encrypted' => false]);
+
+        Http::fake(fn () => throw new ConnectionException('cURL error 60: SSL certificate problem for https://script.googleusercontent.com/macros/echo?user_content_key=abc'));
+
+        config()->set('app.debug', false);
+
+        Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'integrations')
+            ->call('testConnection')
+            ->assertSee('Could not reach Google Apps Script')
+            ->assertDontSee('cURL error 60')
+            ->assertDontSee('user_content_key');
+
+        config()->set('app.debug', true);
+
+        Livewire::test(SettingsIndex::class)
+            ->call('loadData')
+            ->call('setGroup', 'integrations')
+            ->call('testConnection')
+            ->assertSee('Could not reach Google Apps Script')
+            ->assertSee('cURL error 60');
     }
 }

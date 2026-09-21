@@ -7,6 +7,7 @@ use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Models\PromoClaim;
 use App\Support\SiteSettings;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -149,8 +150,24 @@ class Index extends Component
         }, $filename, ['Content-Type' => 'text/csv']);
     }
 
+    /**
+     * Update the spreadsheet now, so a status change shows there straight away
+     * even where no queue worker runs. A slow or failing Google falls back to
+     * the queue, which retries.
+     */
     protected function syncStatus(PromoClaim $claim): void
     {
+        try {
+            AppendPromoClaimToGoogleSheet::dispatchSync($claim->id, true, true);
+
+            return;
+        } catch (Throwable $e) {
+            Log::warning("Promo claim sheet status update deferred to the queue.", [
+                "promo_claim_id" => $claim->id,
+                "error" => $e->getMessage(),
+            ]);
+        }
+
         try {
             AppendPromoClaimToGoogleSheet::dispatch($claim->id, true);
         } catch (Throwable $e) {

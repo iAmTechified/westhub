@@ -68,6 +68,9 @@
                                     <span class="block">{{ $appointment->event_type_name ?: ($appointment->service?->name ?: 'General') }}</span>
                                     @if($appointment->calendly_event_id || $appointment->calendly_invitee_id || $appointment->reschedule_url || $appointment->cancel_url)
                                         <span class="text-[10px] uppercase tracking-wider text-indigo-400 font-semibold">Calendly</span>
+                                    @elseif(data_get($appointment->meta, 'provider') === 'google_booking_page')
+                                        {{-- Google's booking page reports nothing back: match it to the calendar entry by email. --}}
+                                        <span class="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold" title="Booked on Google's booking page. Match it to the calendar entry by email.">Google booking page</span>
                                     @endif
                                 </td>
                                 <td class="p-3 text-admin-muted">

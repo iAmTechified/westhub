@@ -18,13 +18,24 @@ use Throwable;
  * Header handling is deliberately forgiving: rows are written by header NAME
  * rather than fixed position, and columns a human removed are re-appended
  * instead of failing every submission from then on.
+ *
+ * Two connection methods, chosen in the admin:
+ *  - service_account: the Sheets API with a Google Cloud service account key.
+ *  - apps_script: an Apps Script web app bound to the spreadsheet, which needs
+ *    no Cloud project or key (see AppsScriptSheets). Same behaviour either way.
  */
 class GoogleSheets
 {
     public const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 
+    public const METHOD_SERVICE_ACCOUNT = 'service_account';
+    public const METHOD_APPS_SCRIPT = 'apps_script';
+
     /** @var array<string, array<string, int>> tab => header => column index */
     protected array $headerMaps = [];
+
+    /** Null uses the per-transport default. */
+    protected ?int $timeout = null;
 
     /**
      * Syncing is on when the admin toggle says so. If the toggle has never been
@@ -45,7 +56,78 @@ class GoogleSheets
 
     public function isConfigured(): bool
     {
+        if ($this->usesAppsScript()) {
+            return AppsScriptSheets::looksLikeWebAppUrl($this->appsScriptUrl()) && $this->appsScriptSecret() !== '';
+        }
+
         return $this->spreadsheetId() !== '' && $this->account()->isUsable();
+    }
+
+    /**
+     * Unset (in settings and .env) means service account, so setups from
+     * before this choice existed keep working unchanged.
+     */
+    public function method(): string
+    {
+        return SiteSettings::get('integrations', 'google_sheets_method', config('services.google_sheets.method')) === self::METHOD_APPS_SCRIPT
+            ? self::METHOD_APPS_SCRIPT
+            : self::METHOD_SERVICE_ACCOUNT;
+    }
+
+    public function usesAppsScript(): bool
+    {
+        return $this->method() === self::METHOD_APPS_SCRIPT;
+    }
+
+    public function appsScriptUrl(): string
+    {
+        return trim((string) SiteSettings::get('integrations', 'google_sheets_apps_script_url', config('services.google_sheets.apps_script_url')));
+    }
+
+    public function appsScriptSecret(): string
+    {
+        return trim((string) SiteSettings::get('integrations', 'google_sheets_apps_script_secret', config('services.google_sheets.apps_script_secret')));
+    }
+
+    public function appsScript(): AppsScriptSheets
+    {
+        return new AppsScriptSheets($this->appsScriptUrl(), $this->appsScriptSecret(), $this->timeout ?? 30);
+    }
+
+    /**
+     * A copy that gives up sooner. Used for the attempt made inside a
+     * visitor's request, where a slow Google must not hold up the page:
+     * that attempt fails fast and the queue takes over.
+     */
+    public function usingTimeout(int $seconds): static
+    {
+        $clone = clone $this;
+        $clone->timeout = max(1, $seconds);
+        $clone->headerMaps = [];
+
+        return $clone;
+    }
+
+    /**
+     * Whether the tab already holds a row with this key.
+     *
+     * Checked before a retry, so a write that reached Google but whose
+     * reply was lost cannot become a second row. The deployed Apps Script
+     * has no read-only lookup, so this rewrites the key cell with the value
+     * it already contains, which changes nothing and reports whether the
+     * row was found.
+     *
+     * @param  array<int, string>  $headerContract
+     */
+    public function rowExists(string $tab, array $headerContract, string $key): bool
+    {
+        if (! $this->usesAppsScript()) {
+            return $this->findRowNumber($tab, $key) !== null;
+        }
+
+        $keyColumn = (string) ($headerContract[0] ?? '');
+
+        return $keyColumn !== '' && $this->appsScript()->update($tab, $headerContract, $key, $keyColumn, $key);
     }
 
     public function spreadsheetId(): string
@@ -80,6 +162,12 @@ class GoogleSheets
      */
     public function appendRow(string $tab, array $headerContract, array $values): void
     {
+        if ($this->usesAppsScript()) {
+            $this->appsScript()->append($tab, $headerContract, $values);
+
+            return;
+        }
+
         $map = $this->headerMap($tab, $headerContract);
         $width = max($map) + 1;
         $row = array_fill(0, $width, '');
@@ -110,6 +198,10 @@ class GoogleSheets
      */
     public function updateRowColumn(string $tab, array $headerContract, string $key, string $header, ?string $value): bool
     {
+        if ($this->usesAppsScript()) {
+            return $this->appsScript()->update($tab, $headerContract, $key, $header, $value);
+        }
+
         $rowNumber = $this->findRowNumber($tab, $key);
 
         if ($rowNumber === null) {
@@ -260,6 +352,10 @@ class GoogleSheets
      */
     public function testConnection(): array
     {
+        if ($this->usesAppsScript()) {
+            return $this->testAppsScript();
+        }
+
         if ($this->spreadsheetId() === '') {
             return ['ok' => false, 'message' => 'No spreadsheet ID has been set.'];
         }
@@ -284,7 +380,7 @@ class GoogleSheets
             }
 
             if ($response->failed()) {
-                return ['ok' => false, 'message' => 'Google rejected the request: ' . $response->body()];
+                return ['ok' => false, 'message' => 'Google rejected the request (HTTP ' . $response->status() . ').', 'detail' => $response->body()];
             }
 
             $title = (string) $response->json('properties.title', 'Untitled');
@@ -292,15 +388,43 @@ class GoogleSheets
 
             return ['ok' => true, 'message' => 'Connected to "' . $title . '". Tabs found: ' . (implode(', ', $tabs) ?: 'none') . '.'];
         } catch (Throwable $e) {
-            return ['ok' => false, 'message' => $e->getMessage()];
+            return ['ok' => false, 'message' => 'Could not connect to Google Sheets. Check the service account key, then try again.', 'detail' => $e->getMessage()];
         }
+    }
+
+    /**
+     * @return array{ok: bool, message: string, detail?: string|null}
+     */
+    protected function testAppsScript(): array
+    {
+        if ($this->appsScriptUrl() === '') {
+            return ['ok' => false, 'message' => 'No Apps Script web app URL has been set.'];
+        }
+
+        if (! AppsScriptSheets::looksLikeWebAppUrl($this->appsScriptUrl())) {
+            return ['ok' => false, 'message' => 'That is not a deployed Apps Script web app URL. Copy it from Deploy → Manage deployments; it ends in /exec.'];
+        }
+
+        if ($this->appsScriptSecret() === '') {
+            return ['ok' => false, 'message' => 'No shared secret has been set. Use the same value as the WESTHUB_SECRET script property.'];
+        }
+
+        try {
+            $sheet = $this->appsScript()->ping();
+        } catch (Throwable $e) {
+            // Our own messages are already plain language; a wrapped transport
+            // error keeps its cURL text for debug mode only.
+            return ['ok' => false, 'message' => $e->getMessage(), 'detail' => $e->getPrevious()?->getMessage()];
+        }
+
+        return ['ok' => true, 'message' => 'Connected to "' . $sheet['title'] . '" through Apps Script. Tabs found: ' . (implode(', ', $sheet['tabs']) ?: 'none') . '.'];
     }
 
     protected function request(): PendingRequest
     {
         return Http::withToken($this->account()->accessToken(self::SCOPE))
             ->acceptJson()
-            ->timeout(20);
+            ->timeout($this->timeout ?? 20);
     }
 
     protected function valuesUrl(string $range): string

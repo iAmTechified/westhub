@@ -6,11 +6,13 @@ use App\Livewire\Admin\Concerns\InteractsWithAdminToast;
 use App\Models\Setting;
 use App\Models\SettingAudit;
 use App\Services\Appointments\AppointmentProviderManager;
+use App\Services\Google\AppsScriptSheets;
 use App\Services\Google\GoogleSheets;
 use App\Support\SettingsCrypto;
 use App\Support\SiteSettings;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules\Password;
 use Livewire\Component;
 use Throwable;
@@ -25,7 +27,8 @@ class Index extends Component
      * permission means every signed-in admin may.
      *
      * Field meta keys: label, type, placeholder, help, required, encrypted,
-     * options, section, showWhen (['field' => 'value']).
+     * options, section, showWhen (['field' => 'value']), and env: the
+     * [config key, ENV_VAR] the site falls back to while nothing is saved here.
      *
      * Kept public: the view reads `_meta` from it directly.
      */
@@ -94,8 +97,13 @@ class Index extends Component
             'provider' => [
                 'label' => 'Booking provider',
                 'type' => 'select',
-                'options' => ['calendly' => 'Calendly', 'google' => 'Google Calendar'],
+                'options' => [
+                    'calendly' => 'Calendly',
+                    'google' => 'Google Calendar (times shown in our form, needs a service account)',
+                    'google_booking_page' => 'Google booking page (appointment schedule, no service account)',
+                ],
                 'section' => 'Provider',
+                'env' => ['services.appointments.provider', 'APPOINTMENT_PROVIDER'],
                 'help' => 'Which system the website booking form hands off to.',
             ],
             'timezone' => [
@@ -111,7 +119,18 @@ class Index extends Component
                 'section' => 'Calendly',
                 'placeholder' => 'https://calendly.com/westhub/appointment',
                 'showWhen' => ['provider' => 'calendly'],
+                'env' => ['services.calendly.appointment_url', 'CALENDLY_APPOINTMENT_URL'],
                 'help' => 'Paste a different link here to switch Calendly accounts.',
+            ],
+
+            'google_booking_page_url' => [
+                'label' => 'Booking page link',
+                'type' => 'url',
+                'section' => 'Google booking page',
+                'placeholder' => 'https://calendar.google.com/calendar/appointments/schedules/...',
+                'showWhen' => ['provider' => 'google_booking_page'],
+                'env' => ['services.google_booking_page.url', 'GOOGLE_BOOKING_PAGE_URL'],
+                'help' => 'In Google Calendar, open the appointment schedule, then Share and copy the booking page link. Hours, length and reminders are set in Google Calendar, not here.',
             ],
 
             'google_calendar_id' => [
@@ -157,9 +176,41 @@ class Index extends Component
                 'section' => 'Google Sheets',
                 'help' => 'When on, job applications and promo claims are appended to the spreadsheet as they arrive.',
             ],
+            'google_sheets_method' => [
+                'label' => 'Connection method',
+                'type' => 'select',
+                // Service account first: an unset method means service account,
+                // so existing setups keep their fields and keep syncing.
+                'options' => [
+                    'service_account' => 'Service account (Google Cloud key)',
+                    'apps_script' => 'Apps Script web app (no Google Cloud project or key)',
+                ],
+                'section' => 'Google Sheets',
+                'env' => ['services.google_sheets.method', 'GOOGLE_SHEETS_METHOD'],
+                'help' => 'Apps Script runs as the spreadsheet owner, so nothing needs sharing. Setup: docs/DEPLOYMENT.md section 4.2.',
+            ],
+            'google_sheets_apps_script_url' => [
+                'label' => 'Apps Script web app URL',
+                'type' => 'url',
+                'section' => 'Google Sheets',
+                'placeholder' => 'https://script.google.com/macros/s/.../exec',
+                'showWhen' => ['google_sheets_method' => 'apps_script'],
+                'env' => ['services.google_sheets.apps_script_url', 'GOOGLE_SHEETS_APPS_SCRIPT_URL'],
+                'help' => 'From Deploy, then Manage deployments, in the script editor. It ends in /exec.',
+            ],
+            'google_sheets_apps_script_secret' => [
+                'label' => 'Shared secret',
+                'encrypted' => true,
+                'section' => 'Google Sheets',
+                'showWhen' => ['google_sheets_method' => 'apps_script'],
+                'env' => ['services.google_sheets.apps_script_secret', 'GOOGLE_SHEETS_APPS_SCRIPT_SECRET'],
+                'help' => 'The same value as the WESTHUB_SECRET script property. Stored encrypted and never shown again, so keep a copy before saving.',
+            ],
             'google_sheets_spreadsheet_id' => [
                 'label' => 'Spreadsheet ID',
                 'section' => 'Google Sheets',
+                'showWhen' => ['google_sheets_method' => 'service_account'],
+                'env' => ['services.google_sheets.spreadsheet_id', 'GOOGLE_SHEETS_SPREADSHEET_ID'],
                 'placeholder' => '1AbC...xyz',
                 'help' => 'The long ID in the sheet URL between /d/ and /edit.',
             ],
@@ -168,6 +219,8 @@ class Index extends Component
                 'type' => 'email',
                 'section' => 'Google Sheets',
                 'placeholder' => 'westhub-sheets@project.iam.gserviceaccount.com',
+                'showWhen' => ['google_sheets_method' => 'service_account'],
+                'env' => ['services.google_sheets.service_account_email', 'GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL'],
                 'help' => 'Share the spreadsheet with this address and give it Editor access.',
             ],
             'google_sheets_private_key' => [
@@ -175,9 +228,11 @@ class Index extends Component
                 'type' => 'textarea',
                 'encrypted' => true,
                 'section' => 'Google Sheets',
+                'showWhen' => ['google_sheets_method' => 'service_account'],
+                'env' => ['services.google_sheets.private_key', 'GOOGLE_SHEETS_PRIVATE_KEY'],
                 'help' => 'Paste the whole JSON key file, or just the private key. Stored encrypted.',
             ],
-            'google_sheets_join_requests_tab' => ['label' => 'Job applications tab', 'section' => 'Google Sheets', 'placeholder' => 'Join Requests'],
+            'google_sheets_join_requests_tab' => ['label' => 'Job applications tab', 'section' => 'Google Sheets', 'placeholder' => 'Join Requests', 'env' => ['services.google_sheets.sheet_name', 'GOOGLE_SHEETS_SHEET_NAME']],
             'google_sheets_promo_claims_tab' => ['label' => 'Promo claims tab', 'section' => 'Google Sheets', 'placeholder' => 'Promo Claims'],
         ],
         'contact' => [
@@ -254,7 +309,7 @@ class Index extends Component
         // is checked here against whatever group is actually being saved.
         $this->authorizeManage($this->group);
 
-        $validated = $this->validate($this->settingsRules());
+        $validated = $this->validate($this->settingsRules(), $this->settingsMessages());
 
         foreach ($this->visibleFields() as $key => $meta) {
             $isEncrypted = (bool) ($meta['encrypted'] ?? false);
@@ -324,7 +379,18 @@ class Index extends Component
                 'appointments' => app(AppointmentProviderManager::class)->testConnection(),
             };
         } catch (Throwable $e) {
-            $this->testResult = ['ok' => false, 'message' => $e->getMessage()];
+            report($e);
+            $this->testResult = ['ok' => false, 'message' => 'The connection test failed unexpectedly. The details are in the application log.', 'detail' => $e->getMessage()];
+        }
+
+        // Staff see the plain message; the technical detail is only rendered
+        // with APP_DEBUG on, so keep it in the log for production.
+        if (! $this->testResult['ok'] && filled($this->testResult['detail'] ?? null)) {
+            Log::warning('Settings connection test failed.', [
+                'group' => $this->group,
+                'message' => $this->testResult['message'],
+                'detail' => $this->testResult['detail'],
+            ]);
         }
 
         $this->testResult['ok']
@@ -495,8 +561,21 @@ class Index extends Component
             $type = $meta['type'] ?? 'text';
             $value = $persisted[$key] ?? '';
 
+            // An unsaved select shows what the site is actually using: the .env
+            // value when it names a real option, otherwise the first option.
             if ($type === 'select' && $value === '') {
-                $value = (string) array_key_first($meta['options'] ?? ['' => '']);
+                $fallback = $this->envValue($meta);
+
+                $value = $fallback !== null && array_key_exists($fallback, $meta['options'] ?? [])
+                    ? $fallback
+                    : (string) array_key_first($meta['options'] ?? ['' => '']);
+            }
+
+            // Never saved, the sync toggle is on whenever Sheets is configured
+            // (GoogleSheets::isEnabled). Show that, or the box reads unticked
+            // while syncing and saving the page would switch sync off.
+            if ($key === 'google_sheets_enabled' && ! array_key_exists($key, $persisted)) {
+                $value = app(GoogleSheets::class)->isConfigured() ? '1' : '0';
             }
 
             // Livewire binds a checkbox with `checked = !!value`, and the string
@@ -543,7 +622,76 @@ class Index extends Component
             $rules['settings.timezone'] = ['nullable', 'string', 'timezone'];
         }
 
+        // Catch a wrong link at save time, where it is easy to fix, rather than
+        // as bookings or rows that silently never happen.
+        if (isset($rules['settings.google_booking_page_url'])) {
+            $rules['settings.google_booking_page_url'][] = 'regex:' . AppointmentProviderManager::GOOGLE_BOOKING_PAGE_PATTERN;
+        }
+
+        if (isset($rules['settings.google_sheets_apps_script_url'])) {
+            $rules['settings.google_sheets_apps_script_url'][] = 'regex:' . AppsScriptSheets::URL_PATTERN;
+        }
+
         return $rules;
+    }
+
+    /** The .env value a field falls back to, or null when there is none. */
+    protected function envValue(array $meta): ?string
+    {
+        if (! isset($meta['env'][0])) {
+            return null;
+        }
+
+        $value = trim((string) config($meta['env'][0]));
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * Fields in this group with nothing saved that are running on a .env value:
+     * field => ['var' => ENV_VAR, 'value' => what to show, or null for a
+     * secret, which is never sent to the browser].
+     *
+     * @return array<string, array{var: string, value: ?string}>
+     */
+    protected function envFallbacks(): array
+    {
+        $saved = Setting::query()
+            ->where('group', $this->group)
+            ->whereNotNull('value')
+            ->where('value', '!=', '')
+            ->pluck('key')
+            ->all();
+
+        $fallbacks = [];
+
+        foreach (self::GROUP_DEFINITIONS[$this->group] ?? [] as $key => $meta) {
+            if ($key === '_meta' || in_array($key, $saved, true)) {
+                continue;
+            }
+
+            $value = $this->envValue($meta);
+
+            if ($value === null) {
+                continue;
+            }
+
+            $fallbacks[$key] = [
+                'var' => (string) $meta['env'][1],
+                'value' => ($meta['encrypted'] ?? false) ? null : $value,
+            ];
+        }
+
+        return $fallbacks;
+    }
+
+    /** @return array<string, string> */
+    protected function settingsMessages(): array
+    {
+        return [
+            'settings.google_booking_page_url.regex' => 'Use the booking page link from the appointment schedule\'s Share button. It starts with https://calendar.google.com/calendar/appointments/schedules/ or https://calendar.app.google/.',
+            'settings.google_sheets_apps_script_url.regex' => 'Use the web app URL from Deploy, then Manage deployments. It starts with https://script.google.com/macros/s/ and ends in /exec.',
+        ];
     }
 
     protected function normalizeInputValue(mixed $value, array $meta = []): ?string
@@ -607,6 +755,7 @@ class Index extends Component
             'recentAudits' => $recentAudits,
             'sharedKeyConfigured' => SettingsCrypto::sharedKeyConfigured(),
             'testTarget' => self::TEST_TARGETS[$this->group] ?? null,
+            'envFallbacks' => $this->group === 'password' ? [] : $this->envFallbacks(),
             'canManageGroup' => $this->canManage($this->group),
             'hasEncryptedFields' => collect(self::GROUP_DEFINITIONS[$this->group] ?? [])->contains(fn ($meta, $key) => $key !== '_meta' && ($meta['encrypted'] ?? false)),
         ])->layout('layouts.admin');

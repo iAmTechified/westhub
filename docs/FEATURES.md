@@ -52,12 +52,17 @@ Almost none. The campaign ships with its wording filled in. The admin is only fo
 
 ---
 
-## 2. Booking providers: Calendly or Google Calendar
+## 2. Booking providers: Calendly, Google booking page or Google Calendar
 
 The provider is chosen in **Settings → Appointments**, and switching takes effect immediately.
 
 **Calendly** works as before: the visitor's details are saved first, so a lead is never lost, then
 Calendly opens pre-filled. Calendly's scripts are only loaded while Calendly is the active provider.
+
+**Google booking page** uses Google Calendar's appointment schedules, with no Google Cloud setup. After the
+visitor's details are saved, Google's own booking page is shown inside the booking window and the booking
+goes straight onto the calendar. Google does not report the booking back, so the request stays **New** in
+the admin and any promo voucher is redeemed by staff rather than automatically. See `DEPLOYMENT.md` 4.1.
 
 **Google Calendar** keeps the whole booking inside the WestHub site:
 

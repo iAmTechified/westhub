@@ -219,12 +219,19 @@ class SiteSettings
         return 'mailto:' . $email . ($subject ? '?subject=' . rawurlencode($subject) : '');
     }
 
-    /** Which appointment provider to use: "calendly" or "google". */
+    /** Which appointment provider to use: "calendly", "google" or "google_booking_page". */
     public static function appointmentProvider(): string
     {
         $provider = strtolower((string) self::get('appointments', 'provider', config('services.appointments.provider', 'calendly')));
 
-        return in_array($provider, ['calendly', 'google'], true) ? $provider : 'calendly';
+        return in_array($provider, ['calendly', 'google', 'google_booking_page'], true) ? $provider : 'calendly';
+    }
+
+    public static function googleBookingPageUrl(): ?string
+    {
+        $url = self::get('appointments', 'google_booking_page_url', config('services.google_booking_page.url'));
+
+        return filled($url) ? trim($url) : null;
     }
 
     public static function calendlyAppointmentUrl(): ?string

@@ -234,13 +234,40 @@ class SiteSettings
     }
 
     /**
-     * Which appointment provider the site should use: "calendly" or "google".
+     * Which appointment provider the site should use: "calendly", "google" or "google_booking_page".
      */
     public static function appointmentProvider(): string
     {
         $provider = strtolower((string) self::get('appointments', 'provider', config('services.appointments.provider', 'calendly')));
 
-        return in_array($provider, ['calendly', 'google'], true) ? $provider : 'calendly';
+        return in_array($provider, ['calendly', 'google', 'google_booking_page'], true) ? $provider : 'calendly';
+    }
+
+    public static function googleBookingPageUrl(): ?string
+    {
+        $url = self::get('appointments', 'google_booking_page_url', config('services.google_booking_page.url'));
+
+        return filled($url) ? trim($url) : null;
+    }
+
+    /**
+     * The booking page as Google's own "Website embed" snippet frames it: gv=true
+     * drops the Calendar chrome so it sits cleanly inside the booking modal.
+     * Short calendar.app.google links redirect and are used as they are.
+     */
+    public static function googleBookingPageEmbedUrl(): ?string
+    {
+        $url = self::googleBookingPageUrl();
+
+        if (! $url) {
+            return null;
+        }
+
+        if (str_starts_with($url, 'https://calendar.google.com/') && ! preg_match('/[?&]gv=/', $url)) {
+            $url .= (str_contains($url, '?') ? '&' : '?') . 'gv=true';
+        }
+
+        return $url;
     }
 
     public static function calendlyAppointmentUrl(): ?string

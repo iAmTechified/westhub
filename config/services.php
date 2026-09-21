@@ -46,6 +46,10 @@ return [
         'appointment_url' => env('CALENDLY_APPOINTMENT_URL'),
     ],
 
+    'google_booking_page' => [
+        'url' => env('GOOGLE_BOOKING_PAGE_URL'),
+    ],
+
     'google_calendar' => [
         'calendar_id' => env('GOOGLE_CALENDAR_ID'),
         'service_account_email' => env('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
@@ -59,6 +63,10 @@ return [
         'sheet_name' => env('GOOGLE_SHEETS_SHEET_NAME', 'Join Requests'),
         'service_account_email' => env('GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL'),
         'private_key' => env('GOOGLE_SHEETS_PRIVATE_KEY'),
+        // "service_account" (default) or "apps_script".
+        'method' => env('GOOGLE_SHEETS_METHOD'),
+        'apps_script_url' => env('GOOGLE_SHEETS_APPS_SCRIPT_URL'),
+        'apps_script_secret' => env('GOOGLE_SHEETS_APPS_SCRIPT_SECRET'),
     ],
 
     'westhub_admin' => [

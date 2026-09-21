@@ -7,20 +7,30 @@ use App\Models\Appointment;
 use App\Services\Google\GoogleCalendar;
 use App\Support\SiteSettings;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
 /**
  * One place that answers "how does WestHub schedule appointments right now?".
  *
- * The provider is a setting, so operations can switch between Calendly and
- * Google Calendar from the admin without a deploy. Calendly stays a supported
- * option rather than being replaced.
+ * The provider is a setting, so operations can switch between them from the
+ * admin without a deploy:
+ *  - calendly: Calendly's popup, prefilled from our form.
+ *  - google: times offered inside our form, read from and written to Google
+ *    Calendar through a service account.
+ *  - google_booking_page: a Google Calendar appointment schedule's own booking
+ *    page, embedded after our form. No service account; Google books it
+ *    straight onto the calendar, but tells this site nothing back.
  */
 class AppointmentProviderManager
 {
     public const CALENDLY = 'calendly';
     public const GOOGLE = 'google';
+    public const GOOGLE_BOOKING_PAGE = 'google_booking_page';
+
+    /** A booking page link, full or short, as Google's Share dialog gives it. */
+    public const GOOGLE_BOOKING_PAGE_PATTERN = '#^https://(calendar\.google\.com/calendar/(u/\d+/)?appointments/schedules/[A-Za-z0-9_-]+|calendar\.app\.google/[A-Za-z0-9_-]+)([/?\#].*)?$#';
 
     public function __construct(
         protected GoogleCalendar $google,
@@ -42,9 +52,23 @@ class AppointmentProviderManager
         return $this->current() === self::CALENDLY;
     }
 
+    public function isGoogleBookingPage(): bool
+    {
+        return $this->current() === self::GOOGLE_BOOKING_PAGE;
+    }
+
+    public static function looksLikeGoogleBookingPage(string $url): bool
+    {
+        return (bool) preg_match(self::GOOGLE_BOOKING_PAGE_PATTERN, $url);
+    }
+
     public function label(): string
     {
-        return $this->isGoogle() ? 'Google Calendar' : 'Calendly';
+        return match ($this->current()) {
+            self::GOOGLE => 'Google Calendar',
+            self::GOOGLE_BOOKING_PAGE => 'Google booking page',
+            default => 'Calendly',
+        };
     }
 
     public function google(): GoogleCalendar
@@ -59,9 +83,11 @@ class AppointmentProviderManager
      */
     public function isConfigured(): bool
     {
-        return $this->isGoogle()
-            ? $this->google->isConfigured()
-            : filled(SiteSettings::calendlyAppointmentUrl());
+        return match ($this->current()) {
+            self::GOOGLE => $this->google->isConfigured(),
+            self::GOOGLE_BOOKING_PAGE => self::looksLikeGoogleBookingPage((string) SiteSettings::googleBookingPageUrl()),
+            default => filled(SiteSettings::calendlyAppointmentUrl()),
+        };
     }
 
     /**
@@ -71,6 +97,10 @@ class AppointmentProviderManager
     {
         if ($this->isGoogle()) {
             return $this->google->testConnection();
+        }
+
+        if ($this->isGoogleBookingPage()) {
+            return $this->testGoogleBookingPage();
         }
 
         $url = SiteSettings::calendlyAppointmentUrl();
@@ -84,6 +114,34 @@ class AppointmentProviderManager
         }
 
         return ['ok' => true, 'message' => 'Calendly link looks valid: ' . $url];
+    }
+
+    /**
+     * @return array{ok: bool, message: string}
+     */
+    protected function testGoogleBookingPage(): array
+    {
+        $url = SiteSettings::googleBookingPageUrl();
+
+        if (! $url) {
+            return ['ok' => false, 'message' => 'No Google booking page link has been set.'];
+        }
+
+        if (! self::looksLikeGoogleBookingPage($url)) {
+            return ['ok' => false, 'message' => 'That does not look like a Google Calendar booking page. In Google Calendar, open the appointment schedule, then Share → copy the booking page link.'];
+        }
+
+        try {
+            $response = Http::timeout(15)->get($url);
+        } catch (Throwable $e) {
+            return ['ok' => false, 'message' => 'Could not reach Google from this server. Try again in a minute.', 'detail' => $e->getMessage()];
+        }
+
+        if ($response->failed()) {
+            return ['ok' => false, 'message' => 'Google answered HTTP ' . $response->status() . ' for that booking page. Check the schedule still exists and the link was copied in full.'];
+        }
+
+        return ['ok' => true, 'message' => 'Booking page reachable. Visitors book straight onto the calendar that owns the schedule.'];
     }
 
     /**

@@ -391,6 +391,8 @@ body {
 
     .admin-request-feedback {
         @apply rounded-xl border px-3 py-2 text-xs;
+        /* A long unbroken URL in a message must wrap, not widen the page. */
+        overflow-wrap: anywhere;
         border-color: var(--stroke);
         color: var(--muted);
         background: var(--bg-shell-soft);

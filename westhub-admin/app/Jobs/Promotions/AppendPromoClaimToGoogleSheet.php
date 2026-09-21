@@ -20,6 +20,10 @@ use Throwable;
  * The job no-ops silently when Sheets is not configured, so the promo works
  * fine before anyone connects a spreadsheet, and starts syncing the moment
  * someone does.
+ *
+ * $inline marks the attempt made inside the visitor's request: it gives up
+ * quickly and leaves retrying to the queued copy. A queued run is therefore
+ * either that fallback or a retry, so it checks for the row before appending.
  */
 class AppendPromoClaimToGoogleSheet implements ShouldQueue
 {
@@ -35,12 +39,22 @@ class AppendPromoClaimToGoogleSheet implements ShouldQueue
     public function __construct(
         public int $claimId,
         public bool $statusOnly = false,
+        public bool $inline = false,
     ) {
     }
 
     public function handle(GoogleSheets $sheets): void
     {
         if (! $sheets->isEnabled()) {
+            // Silently doing nothing here is indistinguishable from a
+            // successful sync, so leave a trail for whoever is wondering
+            // why the spreadsheet is empty.
+            Log::info('Promo claim not synced: Google Sheets is off or not configured.', [
+                'promo_claim_id' => $this->claimId,
+                'method' => $sheets->method(),
+                'configured' => $sheets->isConfigured(),
+            ]);
+
             return;
         }
 
@@ -48,6 +62,10 @@ class AppendPromoClaimToGoogleSheet implements ShouldQueue
 
         if (! $claim) {
             return;
+        }
+
+        if ($this->inline) {
+            $sheets = $sheets->usingTimeout(5);
         }
 
         $tab = $sheets->tab(PromoClaimSheet::TAB_KEY, PromoClaimSheet::TAB_DEFAULT);
@@ -67,7 +85,7 @@ class AppendPromoClaimToGoogleSheet implements ShouldQueue
                     // was made), so write it in full now.
                     $sheets->appendRow($tab, PromoClaimSheet::HEADERS, PromoClaimSheet::row($claim));
                 }
-            } else {
+            } elseif ($this->inline || ! $sheets->rowExists($tab, PromoClaimSheet::HEADERS, (string) $claim->id)) {
                 $sheets->appendRow($tab, PromoClaimSheet::HEADERS, PromoClaimSheet::row($claim));
             }
 

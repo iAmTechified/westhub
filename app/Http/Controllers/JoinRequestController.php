@@ -150,13 +150,31 @@ class JoinRequestController extends Controller
         ]);
 
         $projection = JoinRequestSubmissionProjection::fromValidated($joinRequest, $validated);
-        $this->dispatchSubmissionJob(new AppendJoinRequestToGoogleSheet($projection->toArray()));
+        $this->syncToSheetNowOrQueue($projection->toArray());
         $this->dispatchSubmissionJob(new SendJoinRequestReceipt($projection->toArray()));
         $this->dispatchSubmissionJob(new SendJoinRequestInternalAlert($projection->toArray()));
 
         return response()->json([
             'message' => 'Thank you. Your application has been submitted.',
         ]);
+    }
+
+    /**
+     * Append the row during this request, falling back to the queue when
+     * Google is slow or unreachable, so the sheet keeps up even where no
+     * queue worker runs. The application row is already saved regardless.
+     */
+    private function syncToSheetNowOrQueue(array $payload): void
+    {
+        try {
+            AppendJoinRequestToGoogleSheet::dispatchSync($payload, true);
+
+            return;
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        $this->dispatchSubmissionJob(new AppendJoinRequestToGoogleSheet($payload));
     }
 
     private function dispatchSubmissionJob(object $job): void

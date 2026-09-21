@@ -23,6 +23,20 @@ class GoogleSheetsService
     ) {
     }
 
+    public function usingTimeout(int $seconds): static
+    {
+        $clone = clone $this;
+        $clone->sheets = $this->sheets->usingTimeout($seconds);
+
+        return $clone;
+    }
+
+    /** Whether this application is already a row in the sheet. */
+    public function rowExists(int $westhubId): bool
+    {
+        return $this->sheets->rowExists($this->tab(), JoinRequestSheet::HEADERS, (string) $westhubId);
+    }
+
     public function isConfigured(): bool
     {
         return $this->sheets->isEnabled();
