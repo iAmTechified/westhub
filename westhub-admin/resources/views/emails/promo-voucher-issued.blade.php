@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Your free month of WestHub healthcare services</title>
+    <title>Your free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }} of WestHub healthcare services</title>
 </head>
 <body style="margin:0; padding:0; background:#f2f6fa; font-family: Arial, Helvetica, sans-serif; color:#3d3d3d; line-height:1.6;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f6fa; padding:24px 12px;">
@@ -23,9 +23,9 @@
 
                     <tr>
                         <td style="padding:28px 32px 8px 32px;">
-                            <h1 style="margin:0 0 12px 0; font-size:22px; color:#1c3f78;">Your free month is reserved, {{ \Illuminate\Support\Str::of($claim->full_name)->trim()->explode(' ')->first() }}.</h1>
+                            <h1 style="margin:0 0 12px 0; font-size:22px; color:#1c3f78;">Your free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }} is reserved, {{ \Illuminate\Support\Str::of($claim->full_name)->trim()->explode(' ')->first() }}.</h1>
                             <p style="margin:0 0 18px 0; font-size:15px;">
-                                Thanks for claiming the WestHub free-month offer. Keep the voucher code below. A care
+                                Thanks for claiming the WestHub free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }} offer. Keep the voucher code below. A care
                                 coordinator will call you within one business day to plan your first visit.
                             </p>
                         </td>
@@ -59,7 +59,7 @@
                     @if($offer->includedServices !== [])
                         <tr>
                             <td style="padding:18px 32px 0 32px;">
-                                <p style="margin:0 0 8px 0; font-size:13px; font-weight:bold; color:#1c3f78;">What the free month covers</p>
+                                <p style="margin:0 0 8px 0; font-size:13px; font-weight:bold; color:#1c3f78;">What your free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }} covers</p>
                                 <ul style="margin:0; padding-left:18px; font-size:14px;">
                                     @foreach($offer->includedServices as $service)
                                         <li style="margin-bottom:4px;">{{ $service }}</li>

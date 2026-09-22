@@ -19,7 +19,7 @@ class PromoPopupRendersOnSiteTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertSee('Claim My Free Month', false);
+        $response->assertSee('Claim My Free 2 Weeks', false);
         $response->assertSee('westhubPromoGate', false);
     }
 
@@ -30,7 +30,7 @@ class PromoPopupRendersOnSiteTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertDontSee('Claim My Free Month', false);
+        $response->assertDontSee('Claim My Free 2 Weeks', false);
         $response->assertDontSee('westhubPromoGate', false);
     }
 

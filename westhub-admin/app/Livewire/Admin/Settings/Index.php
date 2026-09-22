@@ -50,7 +50,7 @@ class Index extends Component
         'promotions' => [
             '_meta' => [
                 'icon' => 'gift',
-                'description' => 'The “1 Month Free Healthcare Services” popup. Changes go live on the website immediately.',
+                'description' => 'The “2 Weeks Free Healthcare Services” popup. Changes go live on the website immediately.',
                 'view' => 'promos.view',
                 'manage' => 'promos.manage',
             ],
@@ -70,12 +70,12 @@ class Index extends Component
             ],
 
             'eyebrow' => ['label' => 'Tag text', 'section' => 'Wording', 'placeholder' => 'Limited-time offer'],
-            'offer_amount' => ['label' => 'Offer amount', 'section' => 'Wording', 'placeholder' => '1 Month'],
+            'offer_amount' => ['label' => 'Offer amount', 'section' => 'Wording', 'placeholder' => '2 Weeks'],
             'offer_highlight' => ['label' => 'Highlighted word', 'section' => 'Wording', 'placeholder' => 'FREE'],
             'offer_subline' => ['label' => 'Offer subline', 'type' => 'textarea', 'section' => 'Wording', 'placeholder' => 'of home care, nursing or therapeutic services for new clients'],
-            'headline' => ['label' => 'Headline', 'type' => 'textarea', 'section' => 'Wording', 'placeholder' => 'Get your first month of healthcare services, free.'],
+            'headline' => ['label' => 'Headline', 'type' => 'textarea', 'section' => 'Wording', 'placeholder' => 'Get your first two weeks of healthcare services, free.'],
             'body' => ['label' => 'Body copy', 'type' => 'textarea', 'section' => 'Wording'],
-            'cta_label' => ['label' => 'Button label', 'section' => 'Wording', 'placeholder' => 'Claim My Free Month'],
+            'cta_label' => ['label' => 'Button label', 'section' => 'Wording', 'placeholder' => 'Claim My Free 2 Weeks'],
             'dismiss_label' => ['label' => 'Dismiss link', 'section' => 'Wording'],
             'included_services' => ['label' => 'Included services', 'section' => 'Wording', 'placeholder' => 'Home Care Services, Nursing Care, Therapeutic Services', 'help' => 'Comma separated. Shown as a checklist.'],
             'fine_print' => ['label' => 'Fine print', 'type' => 'textarea', 'section' => 'Wording'],
@@ -83,7 +83,7 @@ class Index extends Component
             'delay_seconds' => ['label' => 'Show after (seconds)', 'type' => 'number', 'section' => 'Behaviour', 'placeholder' => '4'],
             'scroll_percent' => ['label' => 'Or after scrolling (%)', 'type' => 'number', 'section' => 'Behaviour', 'placeholder' => '30'],
             'frequency_days' => ['label' => 'Do not re-show for (days)', 'type' => 'number', 'section' => 'Behaviour', 'placeholder' => '7'],
-            'voucher_prefix' => ['label' => 'Voucher prefix', 'section' => 'Behaviour', 'placeholder' => 'WH-FREE30'],
+            'voucher_prefix' => ['label' => 'Voucher prefix', 'section' => 'Behaviour', 'placeholder' => 'WH-FREE14'],
             'voucher_validity_days' => ['label' => 'Voucher valid for (days)', 'type' => 'number', 'section' => 'Behaviour', 'placeholder' => '30'],
             'subscribe_on_consent' => ['label' => 'Add consenting claimants to the newsletter', 'type' => 'boolean', 'section' => 'Behaviour'],
         ],

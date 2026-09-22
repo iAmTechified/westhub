@@ -24,7 +24,7 @@ class PromoClaimInternalAlert extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'New free-month claim: '.$this->claim->full_name,
+            subject: 'New promo claim: '.$this->claim->full_name,
             replyTo: [$this->claim->email],
         );
     }

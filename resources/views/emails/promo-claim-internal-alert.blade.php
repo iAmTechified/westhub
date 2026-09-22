@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>New free-month claim</title>
+    <title>New promo claim</title>
 </head>
 <body style="font-family: Arial, Helvetica, sans-serif; color:#12334b; line-height:1.6;">
-    <h1 style="font-size:20px; margin:0 0 4px 0;">New free-month claim</h1>
+    <h1 style="font-size:20px; margin:0 0 4px 0;">New promo claim</h1>
     <p style="margin:0 0 18px 0; color:#5b6b7a;">Call this person within one business day.</p>
 
     <table cellpadding="6" cellspacing="0" style="border-collapse:collapse; font-size:14px;">

@@ -24,7 +24,7 @@ class PromoVoucherIssued extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your free month of WestHub healthcare services',
+            subject: 'Your free ' . \Illuminate\Support\Str::lower($this->offer->offerAmount) . ' of WestHub healthcare services',
         );
     }
 

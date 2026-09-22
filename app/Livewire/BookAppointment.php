@@ -143,7 +143,7 @@ class BookAppointment extends Component
 
         if ($claim) {
             $this->promoValid = true;
-            $this->promoMessage = 'Free-month voucher applied.';
+            $this->promoMessage = 'Voucher applied.';
 
             $this->fullName = $this->fullName ?: (string) $claim->full_name;
             $this->email = $this->email ?: (string) $claim->email;

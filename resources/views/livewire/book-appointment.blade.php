@@ -43,7 +43,7 @@
 
                 @if ($promoValid && $promoCode)
                     <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
-                        Free-month voucher {{ $promoCode }} has been applied to this booking.
+                        Voucher {{ $promoCode }} has been applied to this booking.
                     </div>
                 @endif
 
@@ -142,7 +142,7 @@
         <div class="grid gap-5 px-5 py-6 md:px-7">
             @if ($promoValid && $promoCode)
                 <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
-                    Free-month voucher {{ $promoCode }} is saved with your request. Our team applies it when they confirm your appointment.
+                    Voucher {{ $promoCode }} is saved with your request. Our team applies it when they confirm your appointment.
                 </div>
             @endif
 
@@ -154,7 +154,7 @@
                         Google has emailed your appointment to <span class="font-semibold break-all">{{ $email }}</span>, with a link to change or cancel it.
                         Our care coordinator will be in touch before your appointment.
                         @if ($promoValid && $promoCode)
-                            Your free-month voucher {{ $promoCode }} is saved with this booking.
+                            Your voucher {{ $promoCode }} is saved with this booking.
                         @endif
                     </p>
                 </div>
@@ -238,7 +238,7 @@
         <div class="grid gap-5 px-5 py-6 md:px-7">
             @if ($promoValid && $promoCode)
                 <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-4 text-sm font-semibold text-primary-300">
-                    Free-month voucher {{ $promoCode }} has been applied to this booking.
+                    Voucher {{ $promoCode }} has been applied to this booking.
                 </div>
             @endif
             <div class="rounded-lg border border-primary-100/30 bg-primary-50 p-5">

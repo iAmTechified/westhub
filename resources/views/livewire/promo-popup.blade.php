@@ -261,9 +261,9 @@
                             <div class="space-y-2.5">
                                 <h2 id="promo-headline" class="font-display text-[26px] font-bold leading-[1.18] tracking-tight text-primary-300 sm:text-[32px]">
                                     @if($alreadyClaimed)
-                                        You already have a free month, {{ \Illuminate\Support\Str::of($fullName)->trim()->explode(' ')->first() }}.
+                                        You already have a free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }}, {{ \Illuminate\Support\Str::of($fullName)->trim()->explode(' ')->first() }}.
                                     @else
-                                        Your free month is reserved, {{ \Illuminate\Support\Str::of($fullName)->trim()->explode(' ')->first() }}.
+                                        Your free {{ \Illuminate\Support\Str::lower($offer->offerAmount) }} is reserved, {{ \Illuminate\Support\Str::of($fullName)->trim()->explode(' ')->first() }}.
                                     @endif
                                 </h2>
                                 <p class="text-sm leading-relaxed text-neutral-500 sm:text-[15px]">

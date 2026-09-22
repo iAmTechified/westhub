@@ -41,7 +41,7 @@ class PromoPopupTest extends TestCase
 
         Livewire::test(PromoPopup::class)
             ->assertSet('open', false)
-            ->assertDontSee('Claim My Free Month');
+            ->assertDontSee('Claim My Free 2 Weeks');
     }
 
     public function test_the_popup_renders_nothing_once_the_campaign_end_date_has_passed(): void
@@ -51,7 +51,7 @@ class PromoPopupTest extends TestCase
             'ends_at' => now()->subDay()->toDateString(),
         ]);
 
-        Livewire::test(PromoPopup::class)->assertDontSee('Claim My Free Month');
+        Livewire::test(PromoPopup::class)->assertDontSee('Claim My Free 2 Weeks');
     }
 
     public function test_a_live_campaign_renders_the_offer(): void
@@ -59,7 +59,7 @@ class PromoPopupTest extends TestCase
         $this->enablePromo();
 
         Livewire::test(PromoPopup::class)
-            ->assertSee('Claim My Free Month')
+            ->assertSee('Claim My Free 2 Weeks')
             ->assertSee('FREE');
     }
 

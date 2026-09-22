@@ -5,7 +5,7 @@ namespace App\Support;
 use Illuminate\Support\Carbon;
 
 /**
- * The "1 Month Free Healthcare Services" offer, assembled from the shared
+ * The "2 Weeks Free Healthcare Services" offer, assembled from the shared
  * settings table.
  *
  * Everything an operator is likely to change (copy, dates, timing, voucher
@@ -50,13 +50,13 @@ class PromoOffer
         return new self(
             enabled: SiteSettings::bool($g, 'enabled', false),
             eyebrow: (string) SiteSettings::get($g, 'eyebrow', 'Limited-time offer'),
-            offerAmount: (string) SiteSettings::get($g, 'offer_amount', '1 Month'),
+            offerAmount: (string) SiteSettings::get($g, 'offer_amount', '2 Weeks'),
             offerHighlight: (string) SiteSettings::get($g, 'offer_highlight', 'FREE'),
             offerSubline: (string) SiteSettings::get($g, 'offer_subline', 'of home care, nursing or therapeutic services for new clients'),
-            headline: (string) SiteSettings::get($g, 'headline', 'Get your first month of healthcare services, free.'),
-            body: (string) SiteSettings::get($g, 'body', 'Book any home care, nursing or therapeutic service and your first month is on us. A care coordinator calls within one business day.'),
-            ctaLabel: (string) SiteSettings::get($g, 'cta_label', 'Claim My Free Month'),
-            dismissLabel: (string) SiteSettings::get($g, 'dismiss_label', "No thanks, I'll pass on the free month"),
+            headline: (string) SiteSettings::get($g, 'headline', 'Get your first two weeks of healthcare services, free.'),
+            body: (string) SiteSettings::get($g, 'body', 'Book any home care, nursing or therapeutic service and your first two weeks are on us. A care coordinator calls within one business day.'),
+            ctaLabel: (string) SiteSettings::get($g, 'cta_label', 'Claim My Free 2 Weeks'),
+            dismissLabel: (string) SiteSettings::get($g, 'dismiss_label', "No thanks, I'll pass on the free two weeks"),
             finePrint: (string) SiteSettings::get($g, 'fine_print', 'New clients only. One redemption per household. Full terms apply.'),
             startsAt: SiteSettings::date($g, 'starts_at'),
             endsAt: SiteSettings::date($g, 'ends_at')?->endOfDay(),
@@ -64,7 +64,7 @@ class PromoOffer
             scrollPercent: min(100, max(0, SiteSettings::int($g, 'scroll_percent', 30))),
             frequencyDays: max(0, SiteSettings::int($g, 'frequency_days', 7)),
             voucherValidityDays: max(1, SiteSettings::int($g, 'voucher_validity_days', 30)),
-            voucherPrefix: strtoupper(trim((string) SiteSettings::get($g, 'voucher_prefix', 'WH-FREE30'))) ?: 'WH-FREE30',
+            voucherPrefix: strtoupper(trim((string) SiteSettings::get($g, 'voucher_prefix', 'WH-FREE14'))) ?: 'WH-FREE14',
             subscribeOnConsent: SiteSettings::bool($g, 'subscribe_on_consent', true),
             includedServices: self::splitList((string) SiteSettings::get($g, 'included_services', 'Home Care Services, Nursing Care, Therapeutic Services')),
             notifyEmails: self::splitEmails((string) SiteSettings::get($g, 'notify_emails', '')),

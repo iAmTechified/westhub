@@ -14,7 +14,7 @@ use Livewire\Component;
 use Throwable;
 
 /**
- * The "1 Month Free Healthcare Services" popup.
+ * The "2 Weeks Free Healthcare Services" popup.
  *
  * Rendered once in the site layout. Whether it is ever shown is decided in two
  * places: the server decides whether the campaign is live at all (so a paused
